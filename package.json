@@ -1,0 +1,10 @@
+{
+  "name": "heki-16-pro",
+  "version": "16.64.3",
+  "private": true,
+  "description": "HEKI-16 PRO — 16×64 profiles, independent vectors and group chemistry",
+  "scripts": {
+    "test": "node tests/core.cjs dist/index.html",
+    "serve": "python3 -m http.server 8766 --bind 127.0.0.1 --directory dist"
+  }
+}
