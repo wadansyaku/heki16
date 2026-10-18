@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
-
+Disallow: /api/
+Disallow: /legacy/
 Sitemap: https://heki16-pro.aiyume.workers.dev/sitemap.xml

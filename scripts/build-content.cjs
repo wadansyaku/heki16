@@ -1,77 +1,39 @@
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
-const {escapeHtml: esc, validateMonetization, renderAffiliateSection, affiliateCss} = require('./monetization.cjs');
-const root = path.resolve(__dirname, '..');
-const dist = path.join(root, 'dist');
-const origin = 'https://heki16-pro.aiyume.workers.dev';
-let app = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
-const script = [...app.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(s=>s.includes('const QUESTIONS'));
-const context = vm.createContext({console, setTimeout, clearTimeout, URLSearchParams, window:{addEventListener(){}},document:{addEventListener(){}}});
-vm.runInContext(script, context);
-const catalog = JSON.parse(vm.runInContext('JSON.stringify(TYPE_CATALOG)', context));
-const campaigns = validateMonetization(JSON.parse(fs.readFileSync(path.join(root, 'config/monetization.json'), 'utf8')));
-for (const placement of ['home', 'result']) {
-  const start = `<!-- AFFILIATE_${placement.toUpperCase()}_START -->`;
-  const end = `<!-- AFFILIATE_${placement.toUpperCase()}_END -->`;
-  if (!app.includes(start) || !app.includes(end)) throw new Error(`Missing advertising placement: ${placement}`);
-  app = app.replace(new RegExp(start+'[\\s\\S]*?'+end), start+'\n'+renderAffiliateSection(campaigns, placement)+'\n'+end);
-}
-app = app.replace(/\/\* AFFILIATE_CSS_START \*\/[\s\S]*?\/\* AFFILIATE_CSS_END \*\//, `/* AFFILIATE_CSS_START */\n${affiliateCss}\n/* AFFILIATE_CSS_END */`);
-fs.writeFileSync(path.join(dist, 'index.html'), app);
-
-const nav = `<nav aria-label="サイト内"><a href="/">無料診断</a><a href="/types/">16タイプ一覧</a><a href="/guide/">診断の読み方</a><a href="/privacy/">プライバシー</a><a href="/advertising/">広告について</a></nav>`;
-const urls = ['/'];
-function writePage(route, title, description, body) {
-  urls.push(route);
-  const folder = path.join(dist, route);
-  fs.mkdirSync(folder, {recursive:true});
-  fs.writeFileSync(path.join(folder, 'index.html'), `<!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="robots" content="index, follow"><title>${esc(title)}｜HEKI-16 PRO</title><meta name="description" content="${esc(description)}"><link rel="canonical" href="${origin}${route}"><meta property="og:type" content="article"><meta property="og:title" content="${esc(title)}｜HEKI-16 PRO"><meta property="og:description" content="${esc(description)}"><meta property="og:url" content="${origin}${route}"><meta property="og:locale" content="ja_JP"><meta name="twitter:card" content="summary"><link rel="stylesheet" href="/content.css"></head><body><a class="skip" href="#content">本文へ移動</a><header><a class="brand" href="/">HEKI-16 <span>PRO</span></a>${nav}</header><main id="content"><h1>${esc(title)}</h1><p class="lead">${esc(description)}</p>${body}${renderAffiliateSection(campaigns, 'content')}</main><footer>${nav}<p>HEKI-16 PRO · 18歳以上を対象としたエンタメコンテンツです。医療的な診断や、相手の希望・同意を判断するものではありません。</p></footer></body></html>\n`);
-}
-const section = (heading, text) => `<section><h2>${esc(heading)}</h2>${text.split('\n\n').map(p=>`<p>${esc(p)}</p>`).join('')}</section>`;
-
-writePage('/types/', '16タイプの特徴と関係性のヒント', 'HEKI-16 PROの16タイプを一覧で読む。自分の好みや相手との違いを話すきっかけとして使えます。', section('タイプは会話のきっかけ', '4つの方向の組み合わせを16タイプとして表しています。同じタイプでも好みの強さ、サブタイプ、その日の気分は違います。相性の数値は関係の成功率ではありません。')+`<div class="type-grid">${Object.values(catalog).map(t=>`<a class="type-card" href="/types/${t.code}/"><span class="code">${t.code}</span><h2>${esc(t.title)}</h2><p>${esc(t.group)}</p><span>特徴と会話のヒントを読む →</span></a>`).join('')}</div><p><a class="cta" href="/">自分の好みを無料で振り返る</a></p>`);
-
-const axes = [
-  {D:['自分から流れをつくる','どんなときに自分から提案したくなる？','どこからは相手に選んでほしい？'],S:['相手に流れを預ける','安心して任せられるのはどんなとき？','自分で決めておきたいことは何？']},
-  {W:['近い距離でつながる','一緒に過ごす時間はどのくらいあると心地よい？','ひとりの時間がほしいとき、どう伝えたい？'],C:['自分の余白も大切にする','連絡や会う頻度はどのくらいが心地よい？','距離があるときも安心できる言葉は何？']},
-  {N:['関係性や背景に心が動く','ふたりの関係で大切にしている思い出は？','どんな呼び方や言葉がしっくりくる？'],A:['感覚や雰囲気に心が動く','落ち着く声や場所、空気感は？','心地よい距離感をどう伝えたい？']},
-  {X:['意外性や非日常に心が動く','いつもと違う予定を楽しめるのはどんなとき？','試してみたくないことをどう伝える？'],P:['安心や思いやりに心が動く','安心できる気遣いはどんなもの？','疲れた日にしてほしいことは何？']}
-];
-for (const t of Object.values(catalog)) {
-  const directions = [...t.code].map((letter, i)=>axes[i][letter]);
-  writePage(`/types/${t.code}/`, `${t.code} ${t.title}`, `${t.group}の組み合わせをもつ${t.code}タイプの読み方。自分の好みを振り返り、相手と心地よい距離を話すためのヒントです。`,
-    section('このタイプの4つの方向', directions.map(d=>d[0]).join('、')+'。\n\nタイプ名は特徴を覚えやすくするための表現です。「必ずこうしたい」「相手にもこうしてよい」という意味ではありません。各軸には両方が高い状態や、どちらも控えめな状態があります。')+
-    `<section><h2>自分に聞いてみる</h2>${directions.map(d=>`<h3>${esc(d[0])}</h3><p>${esc(d[1])}</p><p>${esc(d[2])}</p>`).join('')}</section>`+
-    section('相手と話すときの使い方', '「私はこの説明のここが近い」と感じた箇所を一つ伝え、相手の答えを聞いてみてください。タイプが同じでも感じ方は違います。答えたくないことは答えなくてよく、以前伝えた好みやNGはいつでも変えられます。\n\n相性スコアよりも、本人の言葉と、その時点の気持ちを優先してください。')+
-    section('4文字と64分類の違い', '4文字は大まかな方向を表します。診断結果には、天性覚醒・献身ケア・本能享楽・両刀スイッチの4つのサブタイプも表示します。これはエンタメ上の分類で、心理学的な検査としての妥当性が確認されたものではありません。')+
-    `<p><a class="cta" href="/">無料で診断を始める</a></p><p><a href="/types/">ほかのタイプを見る</a> · <a href="/guide/">スコアと相性の読み方</a></p>`);
-}
-
-writePage('/guide/', '診断の読み方と楽しみ方', '32問・18問の選び方、16タイプ・64分類、8軸や相性の数値の意味を確認できます。',
-  section('32問と18問を選ぶ', '32問は幅広い情景について振り返るモード、18問はその中の共通設問を使う短いモードです。どちらもタイプ・サブタイプ・カルテを表示しますが、答える設問の数が違うため、結果が一致するとは限りません。所要時間は読み方や考える時間によって変わります。')+
-  section('好みの強さと、両方の共存を見る', '主導と委ねなどの要素は、両方とも高い、片方が高い、両方とも控えめという状態があります。4文字のタイプだけでなく、8軸とマトリクスも一緒に見てください。差が小さい場合は、タイプ名よりも両方に当てはまる部分を大切にしてください。')+
-  section('数値は確率や医学的な測定値ではない', '0〜120の表現や相性の数値は、このアプリ内の計算によるエンタメ上の指標です。集団内の順位、出現率、関係の成功率、診断精度を示すものではありません。臨床・心理検査としての妥当性や再現性は確認されていません。\n\n旧版のコードに保存されていない値は、当時の回答から復元できません。詳しく振り返りたい場合は再診断してください。')+
-  section('2人・3〜4人で使う', '各自が自分の結果や共有コードを確認し、共有したい範囲を選んでから使ってください。4文字だけの入力ではタイプの見本値を使います。個人の詳細な結果を比較する場合は詳細コードを使います。矢印や主導割合が、現実の役割や上下関係を決めることはありません。')+
-  section('共有前に確認する', 'PNGや投稿文には、表示名、好みのタグ、NG、コードなどが含まれる場合があります。送る相手と公開範囲を確認してください。相性招待リンクにも診断コードと名前が入ります。一度共有した画像やリンクは、端末のデータを削除しても相手側から消えません。')+
-  section('想像と現実を分ける', '想像の中で好きなことと、現実に望むことは同じとは限りません。結果を理由に自分や相手に何かを求める必要はありません。気が変わったときは、前の回答や約束よりも今の意思を大切にしてください。'));
-
-writePage('/privacy/', '回答と共有データの扱い', '端末に保存するもの、共有コードに含まれるもの、外部サービスに移動する場合のデータの扱いを説明します。',
-  section('この端末に保存するもの', '途中回答と診断結果は、このサイトのlocalStorageに保存します。表示名や選択したタグも保存する場合があります。運営者のデータベースへ送信する機能はありません。相手・グループの入力は保存しません。\n\nトップページ下部の「この端末の診断・途中回答を削除」から削除できます。ブラウザのデータ削除でも消えます。共用端末では、利用後の削除をご検討ください。')+
-  section('ドメインや端末を変えた場合', '保存内容は利用したブラウザとサイトのドメインごとに分かれます。以前のChatGPT版からCloudflare版へ、回答や結果が自動で移ることはありません。共有コードは相性画面で読めますが、途中回答や表示名・NGをすべて復元するバックアップではありません。')+
-  section('共有したときに含まれるもの', '共有コードにはタイプ・サブタイプ・スコアなどが含まれます。招待リンクの末尾にはコードと表示名が入ります。URLの#以降は通常のページ取得要求には含まれませんが、受け取った人や端末の履歴からは読めます。匿名化や暗号化された秘密ではありません。\n\n画像、投稿文、招待リンクは送信前に表示内容をご確認ください。外部SNSへの投稿はご自身の操作で行います。')+
-  section('サイト配信と外部サービス', 'サイトはCloudflareから配信します。配信に必要な通信情報はCloudflare側で取り扱われます。本サイト独自のアクセス解析タグや広告配信スクリプトは現在導入していません。\n\n広告リンクを有効にする場合も、回答やスコアを広告URLに付加せず、全利用者に同じ広告を表示します。リンク先の購入・計測・Cookie等は各提供元の方針に従います。')+
-  `<p><a href="https://www.cloudflare.com/privacypolicy/" rel="noopener noreferrer" target="_blank">Cloudflareのプライバシーポリシー</a></p>`+
-  section('入力フォームについて', '現在、会員登録、メール収集、問い合わせフォーム、決済機能は設置していません。これらを追加するときは、取り扱う情報と目的をこのページに記載します。'));
-
-writePage('/advertising/', '広告とアフィリエイトの掲載方針', '診断結果から広告を独立させ、広告・PRを明示するための方針です。',
-  section('現在の広告表示', campaigns.length ? '承認済みの広告・アフィリエイトリンクを掲載しています。各掲載箇所に広告・PRと表示します。' : '現在、広告・アフィリエイトリンクは掲載していません。掲載審査とリンクの準備が整ってから有効にします。')+
-  section('広告が入る場合の表示', 'リンク先で購入・申込みがあると、運営者に報酬が支払われる場合があります。提供元、広告・PRの表記、外部サイトへ移動することを分かる形で表示します。価格、契約内容、解約条件はリンク先で確認してください。')+
-  section('診断を広告で変えない', '広告の有無やクリックによって、設問、スコア、タイプ、相性の結果を変えません。質問の選択肢の中や、回答操作を遮る場所には広告を表示しません。診断結果に応じた広告の出し分けや、回答・スコア・名前の広告サービスへの送信は行いません。')+
-  section('掲載する内容を確認する', 'サイトのテーマを掲載先に伝え、認められたプログラムだけを掲載します。誇大な効果、診断で分かったかのような商品適合性、未確認のランキングや体験談で購入を促しません。終了した広告は停止します。')+
-  section('外部サービスの扱い', 'リンク先の商品・サービスは、それぞれの提供元が販売・提供します。本サイトが外部サイトの価格や契約、個人情報の取扱いを管理することはありません。購入を急がず、必要性と条件を確認してください。'));
-
-fs.writeFileSync(path.join(dist, 'content.css'), `:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0c0918;color:#f5f3ff;font-family:system-ui,-apple-system,sans-serif;line-height:1.9}a{color:#f9a8d4;text-underline-offset:4px}a:focus-visible{outline:2px solid #f9a8d4;outline-offset:4px}header,main,footer{max-width:68rem;margin:auto;padding:1.25rem}header{border-bottom:1px solid #ffffff20}.brand{font-size:1.4rem;font-weight:900;text-decoration:none;color:#fff}.brand span,.code{color:#e879f9}nav{display:flex;gap:.7rem 1.2rem;flex-wrap:wrap;margin-top:.75rem;font-size:.875rem}main{padding-top:2.5rem;padding-bottom:3rem}h1{font-size:clamp(1.6rem,5vw,2.6rem);line-height:1.45}h2{font-size:1.3rem;line-height:1.6;margin-top:1.75rem}h3{font-size:1.05rem}p,li{max-width:75ch;overflow-wrap:anywhere}.lead{color:#ddd6fe;font-size:1.05rem}section{margin:1.5rem 0;padding:1.25rem;border:1px solid #a855f740;border-radius:1.25rem;background:#ffffff03}.type-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,17rem),1fr));gap:1rem}.type-card{display:block;padding:1.25rem;border:1px solid #a855f740;border-radius:1.25rem;text-decoration:none;background:#131024;color:#f5f3ff}.type-card:hover{border-color:#f472b6}.type-card h2{margin:.5rem 0}.code{font-size:1.7rem;font-weight:900}.cta{display:inline-block;padding:.8rem 1.2rem;background:#7e22ce;color:#fff;font-weight:800;border-radius:.8rem}footer{border-top:1px solid #ffffff20;color:#c4b5fd;font-size:.8rem}.skip{position:absolute;left:1rem;top:-5rem;background:#4c1d95;color:#fff;padding:.5rem}.skip:focus{top:1rem}${affiliateCss}\n`);
-fs.writeFileSync(path.join(dist, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(url=>`  <url><loc>${origin}${url}</loc></url>`).join('\n')}\n</urlset>\n`);
-console.log(`Built ${urls.length} indexable pages; ${campaigns.length} active campaigns.`);
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const {escapeHtml:esc,validateMonetization,renderAffiliateSection,affiliateCss}=require('./monetization.cjs');
+const root=path.resolve(__dirname,'..'),dist=path.join(root,'dist'),origin='https://heki16-pro.aiyume.workers.dev';
+const legacy=fs.readFileSync(path.join(root,'src/legacy.html'),'utf8');
+const script=[...legacy.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(s=>s.includes('const QUESTIONS'));
+const context=vm.createContext({console,setTimeout,clearTimeout,URLSearchParams,window:{addEventListener(){}},document:{addEventListener(){}}});vm.runInContext(script,context);
+const catalog=JSON.parse(vm.runInContext('JSON.stringify(TYPE_CATALOG)',context));
+const campaigns=validateMonetization(JSON.parse(fs.readFileSync(path.join(root,'config/monetization.json'),'utf8')));
+fs.rmSync(dist,{recursive:true,force:true});fs.mkdirSync(dist,{recursive:true});
+let app=fs.readFileSync(path.join(root,'src/index.html'),'utf8').replace('<!--HOME-->',fs.readFileSync(path.join(root,'src/home.html'),'utf8'));
+for(const placement of ['home','result'])app=app.replace(new RegExp(`<!-- AFFILIATE_${placement.toUpperCase()}_START -->[\\s\\S]*?<!-- AFFILIATE_${placement.toUpperCase()}_END -->`),renderAffiliateSection(campaigns,placement));
+fs.writeFileSync(path.join(dist,'index.html'),app);
+const css=fs.readFileSync(path.join(root,'src/app.css'),'utf8').replace(/\/\* AFFILIATE_CSS_START \*\/[\s\S]*?\/\* AFFILIATE_CSS_END \*\//,affiliateCss);
+fs.writeFileSync(path.join(dist,'app.css'),css);
+const research=JSON.parse(fs.readFileSync(path.join(root,'config/research.json'),'utf8'));
+fs.writeFileSync(path.join(dist,'app.mjs'),fs.readFileSync(path.join(root,'src/app.mjs'),'utf8').replace('__TURNSTILE_SITEKEY__',research.sitekey));
+fs.copyFileSync(path.join(root,'src/reflection.mjs'),path.join(dist,'reflection.mjs'));
+fs.mkdirSync(path.join(dist,'legacy'),{recursive:true});
+fs.writeFileSync(path.join(dist,'legacy/index.html'),legacy.replace(/<meta name="robots"[^>]*>/,'<meta name="robots" content="noindex, follow">').replace(/rel="canonical" href="[^"]+"/,'rel="canonical" href="'+origin+'/legacy/"').replace('<body','<body').replace(/(<body[^>]*>)/,'$1<div style="position:relative;z-index:60;padding:16px;background:#211c30;color:#f4f0fa;text-align:center">旧版の遊びとしての診断です。科学的に検証された分類や相性率ではありません。 <a style="color:#b99ae6" href="/">新しいカルテへ</a></div>'));
+const nav='<nav aria-label="サイト情報"><a href="/">カルテをつくる</a><a href="/library/">読みもの</a><a href="/types/">空想のタイプ図鑑</a><a href="/guide/">読み方</a><a href="/evidence/">根拠</a><a href="/privacy/">プライバシー</a><a href="/advertising/">広告について</a></nav>';
+const urls=['/'];
+function write(route,title,desc,body){urls.push(route);fs.mkdirSync(path.join(dist,route),{recursive:true});fs.writeFileSync(path.join(dist,route,'index.html'),`<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="robots" content="index, follow"><title>${esc(title)}｜HEKI16</title><meta name="description" content="${esc(desc)}"><link rel="canonical" href="${origin}${route}"><meta property="og:title" content="${esc(title)}｜HEKI16"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${origin}${route}"><meta property="og:type" content="article"><meta property="og:locale" content="ja_JP"><meta name="twitter:card" content="summary"><link rel="stylesheet" href="/app.css"></head><body><a class="skip" href="#main">本文へ移動</a><header class="site-header"><a class="brand" href="/">HEKI<span>16</span></a><nav aria-label="メイン"><a href="/">トップ</a><a href="/library/">読みもの</a></nav></header><main id="main" class="article"><p class="eyebrow">好きの輪郭を、自分の言葉で。</p><h1>${esc(title)}</h1><p class="lead muted">${esc(desc)}</p>${body}${renderAffiliateSection(campaigns,'content')}</main><footer class="site-footer">${nav}<p>18歳以上向け。好みを振り返るための読みものです。</p></footer></body></html>\n`);}
+const section=(h,t,id='')=>`<section ${id?'id="'+id+'"':''}><h2>${esc(h)}</h2>${t.split('\n\n').map(p=>'<p>'+esc(p)+'</p>').join('')}</section>`;
+const reading=[['fantasy','想像と、したいことの間','物語の好みと現実の希望を分けて、自分の気持ちをほどく。'],['conversation','相手と話すきっかけ','相性を決めつけず、違いを話題にするための問い。'],['boundaries','安心して共有する','見せるもの、見せないものを、自分で選ぶ。']];
+write('/library/','自分の好みを、もっと知る','性癖や関係性の好みを、自分の言葉で考える読みもの。',`<div class="reading-grid">${reading.map(([s,t,d])=>`<a class="reading" href="/library/${s}/"><h2>${t}</h2><p>${d}</p></a>`).join('')}</div>`+section('空想としてのタイプを楽しむ','少し物語に寄せて、自分に重なる言葉を探したいときは、16のタイプ図鑑も読めます。')+'<p><a href="/types/">空想の16タイプを見る →</a></p>');
+write('/library/fantasy/',reading[0][1],reading[0][2],section('惹かれる場面と、実際の希望','映画や小説の強い関係性に惹かれても、自分の生活で同じことを望むとは限りません。想像は、実行を約束するものではありません。\n\n「見るのが好き」「想像するのが好き」「信頼する相手と話してみたい」「今は実際には望まない」。どれも、分けて持っていてよい気持ちです。')+section('主導と委ねは、一つに決めなくても','流れをつくりたい日と、誰かに任せたい日があっても不思議ではありません。同じ相手との間でも、状況によって変わることがあります。\n\n「Sだからいつも主導する」「Mだから断れない」といった決めつけで、相手の今の希望を置き換えないようにしましょう。')+section('言葉を見つける小さな問い','どんな物語の場面に惹かれる？ その中の、雰囲気、言葉、距離感、役回りのどこが好き？\n\nそれを実際の関係に持ち込みたい？ 見たり想像したりするだけで満たされる？ 今は決めなくても構いません。')+'<p><a href="/evidence/">関連する研究と、このカルテの限界を読む</a></p>');
+write('/library/conversation/',reading[1][1],reading[1][2],section('似ているところから始める','いきなり全部の好みを説明する必要はありません。「落ち着く声が好き」「一緒の時間も、ひとりの時間もほしい」のように、話しやすい一つから始められます。')+section('違いは、勝ち負けではない','連絡の頻度、誘う役割、過ごす場所。好みが違うときは、どちらかが間違っているのではなく、相談したいことが見つかったと考えてみましょう。\n\n「今日はどちらが決めたい？」「どのくらい一緒にいたい？」「途中で変えたくなったら、どう伝える？」。具体的な場面の問いにすると、答えやすくなります。')+section('断る余白も一緒に','共有されたタグは、その場の同意ではありません。以前に好きと言ったことでも、今日は望まない場合があります。答えを急がせず、保留や変更を受け止める余白をつくりましょう。'));
+write('/library/boundaries/',reading[2][1],reading[2][2],section('見せる範囲を、自分で選ぶ','カルテは自分だけで読めます。共有する場合も、タグは一つずつ選べます。「今は避けたい」ことをどこまで伝えるかも、自分で決められます。')+section('一度共有したものは残ることがある','相手は、受け取った画像や内容を保存・転送できます。公開の場所に載せる前には、名前や特定につながる言葉が含まれていないか確認しましょう。\n\n会ったことのない相手に、住所、連絡先、学校や勤務先などを併せて伝える必要はありません。共有をしない選択も大切にできます。')+section('境界線は、変えてよい','「好き」と「今は避けたい」は別々に書けます。以前の自分のタグと違っても、それを間違いにしなくて大丈夫です。自分の言葉で書き直せます。'));
+write('/guide/','カルテの読み方','決めつけず、今の自分を知るために。',section('答えに、正解はありません','今の気持ちに近いものを選んでください。答えたくない問いは飛ばせます。「どちらともいえない」と「まだ答えられない」は、違う気持ちとして扱います。')+section('好みは、同時に持てます','主導したい気持ちと委ねたい気持ち、一緒にいたい気持ちとひとりでいたい気持ち。どちらか一方だけに決める必要はありません。')+section('短いコースは、気軽な振り返り','18問のコースは、少ない問いから今の気持ちを振り返ります。32問のコースは、同じテーマを別の場面からも考えます。どちらも医学的な診断や、性格を確定する検査ではありません。')+section('自分の言葉で、書き足す','タグは好きな言葉で追加できます。置く場所や「好き・大切」「今は避けたい」の区別も変更できます。しっくりこなければ、いつでも編集してください。'));
+write('/evidence/','根拠と向き合い方','研究から分かることと、このカルテでまだ分からないこと。',section('複雑な好みを、単純に決めつけない','性的な想像を調べた研究では、支配や服従を含むテーマが、単純な二分だけでは捉えきれないことが示されています。ただし、それはこのサイトの質問やタイプの正しさを証明するものではありません。')+'<p><a href="https://pubmed.ncbi.nlm.nih.gov/25359122/" rel="noopener noreferrer">Joyal ほか（2015）What exactly is an unusual sexual fantasy?</a>：成人1,516人の調査。参加者や文化が異なるため、日本の利用者にそのまま当てはめられません。</p>'+section('このカルテの現在地','質問とまとめ方は、このサイト独自のものです。科学的に検証された性格検査ではなく、回答を振り返り、好みを言葉にするために使います。\n\n16タイプと旧版の相性率は、科学的に確かめられた分類や成功確率ではありません。空想のタイプ図鑑は、物語的な読みものとして楽しめます。\n\n相手の隠れた本音、行動、同意、関係の将来を、このカルテから断定することはできません。')+section('これから、確かめていくこと','希望する方から提供された回答を使って、質問が同じテーマを捉えているか、答えにくい問いがないかを見直します。十分な回答と品質がそろうまでは、参加者の参考値を出しません。\n\n参加者の参考値が出ても、サイトに来て協力した方の傾向です。一般の人全体の割合や、あなたの「正常・異常」を示すものにはなりません。')+'<p><a href="/privacy/#research">調査への協力と、取り消しについて</a></p>');
+write('/privacy/','プライバシー','自分の好みを、安心して振り返るために。',section('自分だけで使う場合','回答と自由タグは、このブラウザーに保存します。診断やタグの整理だけで、回答がサーバーへ送られることはありません。共用の端末では、利用後にカルテを消すこともできます。\n\nブラウザーのデータを消すと、保存したカルテが失われる場合があります。「データを保存」から手元に控えを残せます。控えには調査の取り消しに使う情報が入るため、公開しないでください。')+section('調査に協力する場合','協力は任意です。同意した方だけが、数値の回答、コース、タグの分類ごとの個数を提供します。自由に書いたタグ、名前、連絡先は収集しません。回答は180日を目安に自動削除し、質問の品質確認と参加者全体の参考値づくりに使います。広告の選別には使いません。\n\nデータはCloudflareのサービスに保管します。個人の回答をそのまま公開しません。調査の集計は、十分な人数と品質を確かめたうえで行います。\n\n「保存・見直し・調査への協力」から取り消せます。取り消すと提供した回答を削除し、公開中の集計をいったん取り下げます。削除した回答が復旧時に戻らないよう、回答内容を含まない削除記録を31日間保管します。匿名の控えが唯一の照合手段です。ブラウザーのデータを消す前に控えを保存してください。\n\nバックアップの控えを持っている場合は、下の「控えから協力を取り消す」を使えます。Cloudflareの災害復旧用バックアップに残った削除前のデータは、最大30日後に期限を迎えます。復旧時は公開と受付を止め、削除済みの回答を再公開しない運用にします。','research')+'<p><a href="/#withdraw">控えから協力を取り消す</a></p>'+section('Bot対策とアクセス情報','調査への協力時は、Cloudflare Turnstileを読み込みます。Cloudflareは、不正利用を防ぐためにIPアドレスやブラウザー情報を扱います。本サイトの回答データベースにはIPアドレスを保存しません。\n\nページの配信でも、Cloudflareが通信に必要な情報を扱います。サイト独自のアクセス解析や広告の追跡用スクリプトは設置していません。')+'<p><a href="https://www.cloudflare.com/privacypolicy/" rel="noopener noreferrer">Cloudflareのプライバシーポリシー</a></p>'+section('共有と外部リンク','共有した内容は、受け取った相手が保存・転送できます。公開する前に内容を確認してください。外部リンクには回答やタグを付けません。リンク先では、そのサービスの規約とプライバシーポリシーが適用されます。'));
+write('/advertising/','広告について','記事と広告を区別し、選ぶための情報を大切にします。',section('現在の掲載状況',campaigns.length?'広告・アフィリエイトを掲載しています。対象の枠には「PR」と報酬が発生する場合があることを表示します。':'現在、広告・アフィリエイトは掲載していません。掲載を始めた際は「PR」と明示します。')+section('好みで広告を選びません','回答や自由タグを広告主に提供しません。診断中に広告を挟まず、結果や読みものの後に、内容と関係する選択肢を控えめに紹介します。')+section('選ぶことを急がせません','根拠のない人気順位や体験談で購入を促しません。紹介のための報酬が、カルテの結果に影響することはありません。外部サービスの価格・条件・対象年齢は、提供元で確かめてください。'));
+write('/types/','空想の16タイプ図鑑','物語の中の自分を探す、小さな性癖タイプ図鑑。',section('重なる言葉だけ、持ち帰ろう','この16タイプはサイト独自の創作です。科学的に人を分類するものではありません。一つのタイプに自分を固定せず、気になる言葉を探す読みものとして楽しめます。')+`<div class="reading-grid">${Object.values(catalog).map(t=>`<a class="reading" href="/types/${t.code}/"><p class="eyebrow">${t.code}</p><h2>${esc(t.title)}</h2><p>${esc(t.group)}</p></a>`).join('')}</div>`);
+const axes=[{D:'自分から流れをつくる場面',S:'相手に流れを預ける場面'},{W:'近い距離でつながる場面',C:'自分の余白を保つ場面'},{N:'言葉や物語に惹かれる瞬間',A:'声や雰囲気に惹かれる瞬間'},{X:'いつもと違う一面に出会うとき',P:'安心できる関係を育てるとき'}];
+for(const t of Object.values(catalog))write(`/types/${t.code}/`,t.title,`${t.code}を、空想の関係性として楽しむ。`,section('どんな場面が浮かぶ？',t.code.split('').map((c,i)=>axes[i][c]).join('。')+'。この組み合わせから、思い浮かぶ相手や物語はありますか？')+section('一つの役回りに、閉じ込めない','物語の中で惹かれる役回りと、実際の関係で望むことは違う場合があります。いつも同じ役を選ぶ必要もありません。しっくりくる言葉だけ、自分のタグに書き足せます。')+section('相手と話すなら','「この中だと、どんな場面が好き？」「想像するだけで楽しいことは？」「実際には避けたいことは？」。一つずつ確かめながら、ふたりの言葉を見つけてみましょう。')+'<p><a class="btn primary" href="/">自分の好みを振り返る</a></p><p><a href="/types/">16タイプの一覧へ</a></p>');
+fs.writeFileSync(path.join(dist,'sitemap.xml'),'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+urls.map(u=>'  <url><loc>'+origin+u+'</loc></url>').join('\n')+'\n</urlset>\n');
+fs.writeFileSync(path.join(dist,'robots.txt'),'User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /legacy/\nSitemap: '+origin+'/sitemap.xml\n');
+fs.writeFileSync(path.join(dist,'404.html'),'<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>ページが見つかりません｜HEKI16</title><link rel="stylesheet" href="/app.css"><main><h1>ページが見つかりませんでした。</h1><a class="btn" href="/">トップへ戻る</a></main></html>');
+console.log(`Built ${urls.length} indexable pages, legacy compatibility, ${campaigns.length} campaigns.`);

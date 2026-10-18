@@ -8,15 +8,17 @@ const dist = path.join(root, 'dist');
 const html = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
-const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)];
-const hashes = scripts.map(match => `'sha256-${crypto.createHash('sha256').update(match[1]).digest('base64')}'`);
+const legacy = fs.readFileSync(path.join(dist, 'legacy/index.html'),'utf8');
+const scripts = [...legacy.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)];
+const hashes = scripts.filter(match=>match[1].trim()).map(match => `'sha256-${crypto.createHash('sha256').update(match[1]).digest('base64')}'`);
 const policy = [
   "default-src 'none'",
-  `script-src 'self' ${hashes.join(' ')}`,
+  `script-src 'self' https://challenges.cloudflare.com ${hashes.join(' ')}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  "connect-src 'none'",
+  "connect-src 'self' https://challenges.cloudflare.com",
+  "frame-src https://challenges.cloudflare.com",
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",
@@ -37,6 +39,8 @@ fs.writeFileSync(path.join(dist, '_headers'), `/*
   X-Robots-Tag: noindex
 /404
   X-Robots-Tag: noindex
+/legacy/*
+  X-Robots-Tag: noindex
 `);
 fs.copyFileSync(path.join(root, 'THIRD_PARTY_NOTICES.md'), path.join(dist, 'THIRD_PARTY_NOTICES.txt'));
 const assetHashes = {};
@@ -53,10 +57,12 @@ function hashAssets(folder, prefix='') {
 hashAssets(dist);
 fs.writeFileSync(path.join(dist, 'version.json'), JSON.stringify({
   version: pkg.version,
-  engineVersion: '16.64.3',
+  engineVersion: 'reflection-1',
+  legacyEngineVersion: '16.64.3',
   indexSha256: sha256(html),
   hosting: 'cloudflare-static-assets',
-  runtimeApiEnabled: false,
+  runtimeApiEnabled: true,
+  researchIntakeEnabled: !!JSON.parse(fs.readFileSync(path.join(root,'config/research.json'),'utf8')).sitekey,
   assets: assetHashes
 }, null, 2) + '\n');
-console.log(`Prepared Cloudflare static release ${pkg.version}; outbound connections blocked.`);
+console.log(`Prepared Cloudflare release ${pkg.version}; research routes isolated from static pages.`);

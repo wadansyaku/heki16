@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://heki16-pro.aiyume.workers.dev/</loc></url>
+  <url><loc>https://heki16-pro.aiyume.workers.dev/library/</loc></url>
+  <url><loc>https://heki16-pro.aiyume.workers.dev/library/fantasy/</loc></url>
+  <url><loc>https://heki16-pro.aiyume.workers.dev/library/conversation/</loc></url>
+  <url><loc>https://heki16-pro.aiyume.workers.dev/library/boundaries/</loc></url>
+  <url><loc>https://heki16-pro.aiyume.workers.dev/guide/</loc></url>
+  <url><loc>https://heki16-pro.aiyume.workers.dev/evidence/</loc></url>
+  <url><loc>https://heki16-pro.aiyume.workers.dev/privacy/</loc></url>
+  <url><loc>https://heki16-pro.aiyume.workers.dev/advertising/</loc></url>
   <url><loc>https://heki16-pro.aiyume.workers.dev/types/</loc></url>
   <url><loc>https://heki16-pro.aiyume.workers.dev/types/DWNX/</loc></url>
   <url><loc>https://heki16-pro.aiyume.workers.dev/types/DWNP/</loc></url>
@@ -18,7 +26,4 @@
   <url><loc>https://heki16-pro.aiyume.workers.dev/types/SCNP/</loc></url>
   <url><loc>https://heki16-pro.aiyume.workers.dev/types/SCAX/</loc></url>
   <url><loc>https://heki16-pro.aiyume.workers.dev/types/SCAP/</loc></url>
-  <url><loc>https://heki16-pro.aiyume.workers.dev/guide/</loc></url>
-  <url><loc>https://heki16-pro.aiyume.workers.dev/privacy/</loc></url>
-  <url><loc>https://heki16-pro.aiyume.workers.dev/advertising/</loc></url>
 </urlset>
