@@ -2,6 +2,7 @@ import {INSTRUMENT,CONSENT,QUESTIONS,DIMENSIONS,TYPES,AXES} from './content.mjs'
 import {organizeTags,GROUPS} from './tags.mjs';
 import {makeProfile,normalizePersonal,personalize} from './profile.mjs';
 import {decodePrevious,encodePrevious} from './share-compat.mjs';
+import {decodeFifth,encodeFifth} from './share-v5.mjs';
 export {INSTRUMENT,CONSENT,QUESTIONS,DIMENSIONS,TYPES,AXES};
 
 export function validAnswers(answers,mode=40){
@@ -15,15 +16,15 @@ function aggregate(values){
   const sum=known.reduce((a,b)=>a+b,0),n=known.length,high=known.filter(v=>v>=3).length;
   return {sum,n,high,score:n?Math.round(sum/n*25):null};
 }
-const strong=(d,min=d?.minimum||3)=>!!d&&d.n>=min&&d.high>=2&&d.score>=70;
-const AUX_ITEMS={giveCare:[26,29],receiveCare:[4,30],ownership:[10,31],switch:[7,16]};
-const level=d=>d.score===null?'まだわからない':d.n<(d.minimum||3)?'手がかりは少なめ':d.score>=70?'強く刺さる':d.score<=30?'今は控えめ':'ほどよく刺さる';
+const strong=(d,min=d?.minimum||3)=>!!d&&d.n>=min&&d.high>=2&&d.score>=65;
+const AUX_ITEMS={giveCare:[26,29],receiveCare:[4,30],ownership:[10,31],switch:[16]};
+const level=d=>d.score===null?'まだわからない':d.n<(d.minimum||3)?'手がかりは少なめ':d.score>=65?'強く刺さる':d.score<=30?'今は控えめ':'ほどよく刺さる';
 
 function chooseType(dims,answers){
   const byId=Object.fromEntries(dims.map(d=>[d.id,d]));
   const axis=AXES.map(([left,right,a,b])=>{
     const l=byId[left],r=byId[right];
-    if(l.n<3||r.n<3)return {letter:null,mixed:true};
+    if(l.n<(l.minimum||3)||r.n<(r.minimum||3))return {letter:null,mixed:true};
     let difference=l.sum/l.n-r.sum/r.n;
     if(Math.abs(difference)<1e-9){
       // Scene choices confirm a direction; an unselected scene is never a negative score.
@@ -41,7 +42,7 @@ function chooseType(dims,answers){
 }
 
 const SHADOWS={
-  switch:{title:'相手次第で、立場が変わる',text:'相手の出方で、飼う側にも懐く側にも回る。'},
+  switch:{title:'途中で、立場が逆になる',text:'始めた役にこだわらず、主導する側も委ねる側も楽しみたい。'},
   ownerPet:{title:'甘やかす側にも、甘える側にも',text:'甘やかすのが好き。自分も褒められると、案外ちょろい。'},
   dualSM:{title:'余裕を崩すのも、崩されるのも',text:'相手の余裕は崩したい。自分の余裕も、ちょっと奪われたい。'},
   wetCool:{title:'距離は自由。特別は独占。',text:'一人の時間はほしい。でも、特別の座は譲らない。'},
@@ -61,23 +62,27 @@ function shadowOf(byId,aux){
 }
 const TRIGGERS=[
   {id:'tease',label:'焦らしと翻弄',items:[3,5,33]},
-  {id:'tamed',label:'わからせられたい',items:[6,27,34]},
+  {id:'tamed',label:'翻弄されたい',items:[6,27,34]},
   {id:'wet',label:'重愛・共依存',items:[9,11,13]},
   {id:'exclusive',label:'独占したい',items:[10,31]},
-  {id:'gap',label:'自分にだけ見せる顔',items:[17,22,24]},
+  {id:'gap',label:'自分にだけ見せる顔',items:[17,31]},
   {id:'costume',label:'装いのギャップ',items:[21,23]},
   {id:'devotion',label:'主導権を預けたい',items:[2,30,39]},
-  {id:'pamper',label:'全肯定で甘やかされたい',items:[4,26,30]},
+  {id:'pamper',label:'褒められて甘えたい',items:[4,30]},
+  {id:'nurture',label:'とことん甘やかしたい',items:[26,29]},
   {id:'care',label:'最後は甘い余韻',items:[26,32]},
-  {id:'cool',label:'温度差に弱い',items:[12,14,15]},
+  {id:'cool',label:'密室の温度差',items:[12,17]},
+  {id:'space',label:'余白も残したい',items:[14,15]},
   {id:'pact',label:'二人だけの約束',items:[25,35]},
-  {id:'switch',label:'攻守逆転',items:[7,16]}
+  {id:'switch',label:'主従逆転',items:[16]}
 ];
 function triggersOf(answers){
   const found=TRIGGERS.map(t=>({...t,...aggregate(t.items.map(n=>at(answers,n)))})).filter(t=>strong(t,2));
-  const voice=at(answers,20)>=3&&selected(answers,37)?.signals?.voice;
-  if(voice)found.push({id:'voice',label:'声フェチ',score:100,n:2,high:2});
-  if(at(answers,28)>=3&&[38,39].some(n=>at(answers,n)>=3))found.push({id:'restraint',label:'二人だけの合図',score:90,n:2,high:2});
+  if(at(answers,20)>=3&&[0,2].includes(at(answers,37)))found.push({id:'voiceReceive',label:'囁きに弱い',score:100,n:2,high:2});
+  if(at(answers,20)>=3&&at(answers,37)===1)found.push({id:'voiceGive',label:'声で仕掛けたい',score:100,n:2,high:2});
+  if(at(answers,28)>=3&&at(answers,38)>=3)found.push({id:'restraintGive',label:'合図で止めたい',score:90,n:2,high:2});
+  if(at(answers,28)>=3&&at(answers,39)>=3)found.push({id:'restraintReceive',label:'合図を待ちたい',score:90,n:2,high:2});
+  if(at(answers,16)>=3&&at(answers,36)===2)found.push({id:'switch',label:'主従逆転',score:100,n:2,high:2});
   if(at(answers,34)>=3&&at(answers,36)===1)found.push({id:'brat',label:'強がりからの陥落',score:100,n:2,high:2});
   return found.sort((a,b)=>b.score-a.score||b.n-a.n).slice(0,6).map(({id,label})=>({id,label}));
 }
@@ -87,12 +92,12 @@ function assemble(dims,aux,code,mixed,triggers,gapId=null){
 }
 export function diagnose(answers){
   if(!validAnswers(answers))throw new TypeError('Invalid diagnosis answers');
-  const dims=DIMENSIONS.map(d=>{const branches=d.branches?.map(items=>aggregate(items.map(i=>answers[i]))).filter(a=>a.n===itemsMinimum(d));const value=branches?.length?branches.sort((a,b)=>b.score-a.score)[0]:aggregate(d.items.map(i=>answers[i]));return {...d,...value};});
-  const aux=Object.fromEntries(Object.entries(AUX_ITEMS).map(([id,items])=>[id,aggregate(items.map(n=>at(answers,n)))]));
+  const dims=DIMENSIONS.map(d=>{const branches=d.branches?.map(items=>aggregate(items.map(i=>answers[i]))).filter(a=>a.n>=itemsMinimum(d));const value=branches?.length?branches.sort((a,b)=>b.score-a.score)[0]:aggregate(d.items.map(i=>answers[i]));return {...d,...value};});
+  const aux=Object.fromEntries(Object.entries(AUX_ITEMS).map(([id,items])=>[id,aggregate(id==='switch'?[at(answers,16),at(answers,36)===2?4:null]:items.map(n=>at(answers,n)))]));
   const {code,mixed}=chooseType(dims,answers);
   const byId=Object.fromEntries(dims.map(d=>[d.id,d]));
   const gapId=at(answers,8)===0&&strong(byId.yield)?'leadToYield':at(answers,8)===1&&strong(byId.lead)?'yieldToLead':null;
-  return {...assemble(dims,aux,code,mixed,triggersOf(answers),gapId),evidence:QUESTIONS.filter(q=>q.kind==='intensity'&&answers[q.id]>=3).map(q=>({id:q.id,question:q.text,answer:q.choices.find(c=>c.value===answers[q.id]).label})),uncertainCount:answers.filter(v=>v===null).length};
+  return {...assemble(dims,aux,code,mixed,triggersOf(answers),gapId),evidence:QUESTIONS.filter(q=>q.kind==='intensity'&&answers[q.id]>=3||q.kind==='scene'&&q.id!==7&&answers[q.id]!==null).map(q=>({id:q.id,question:q.text,answer:q.choices.find(c=>c.value===answers[q.id]).label})),uncertainCount:answers.filter(v=>v===null).length};
 }
 const itemsMinimum=d=>d.minimum||3;
 function validTuple(t,max){
@@ -101,25 +106,26 @@ function validTuple(t,max){
 const tuple=d=>[d.sum,d.n,d.high];
 const expand=t=>({sum:t[0],n:t[1],high:t[2],score:t[1]?Math.round(t[0]/t[1]*25):null});
 export function encodeResult(result,tags=[]){
-  if(result.instrument!==INSTRUMENT&&result.originalCode)return encodePrevious(result.originalCode,tags);
-  const data={v:5,i:INSTRUMENT,c:result.typeCode,m:result.mixed,d:result.dims.map(tuple),a:Object.values(result.aux).map(tuple),r:result.triggers.map(t=>t.id),t:organizeTags(tags).slice(0,3).map(({label,group,kind})=>({label,group,kind})),g:result.gap?.id||null,...(result.personal?{p:normalizePersonal(result.personal)}:{})};
-  return 'H5.'+btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(data)))).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+  if(result.instrument!==INSTRUMENT&&result.originalCode)return result.originalCode.startsWith('H5.')?encodeFifth(result.originalCode,tags):encodePrevious(result.originalCode,tags);
+  const data={v:6,i:INSTRUMENT,c:result.typeCode,m:result.mixed,d:result.dims.map(tuple),a:Object.values(result.aux).map(tuple),r:result.triggers.map(t=>t.id),t:organizeTags(tags).slice(0,3).map(({label,group,kind})=>({label,group,kind})),g:result.gap?.id||null,...(result.personal?{p:normalizePersonal(result.personal)}:{})};
+  return 'H6.'+btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(data)))).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
 }
 export function decodeResult(code){
-  if(typeof code!=='string'||code.length>4000||!/^H[45]\.[A-Za-z0-9_-]+$/.test(code))throw Error('受け取った共有URLを確認してください。');
+  if(typeof code!=='string'||code.length>4000||!/^H[456]\.[A-Za-z0-9_-]+$/.test(code))throw Error('受け取った共有URLを確認してください。');
   if(code.startsWith('H4.'))return decodePrevious(code);
+  if(code.startsWith('H5.'))return decodeFifth(code);
   let p;try{p=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(atob(code.slice(3).replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0))));}catch{throw Error('共有URLを読み取れませんでした。');}
-  const triggerMap=Object.fromEntries([...TRIGGERS,{id:'voice',label:'声フェチ'},{id:'restraint',label:'二人だけの合図'},{id:'brat',label:'強がりからの陥落'}].map(t=>[t.id,t]));
-  if(!p||Object.keys(p).some(k=>!['v','i','c','m','d','a','r','t','p','g'].includes(k))||p.v!==5||p.i!==INSTRUMENT||p.c!==null&&!Object.hasOwn(TYPES,p.c)||!Array.isArray(p.d)||p.d.length!==DIMENSIONS.length||p.d.some((d,i)=>!validTuple(d,DIMENSIONS[i].branches?2:DIMENSIONS[i].items.length))||!Array.isArray(p.a)||p.a.length!==4||p.a.some(a=>!validTuple(a,2))||!Array.isArray(p.m)||p.m.length!==4||p.m.some(m=>typeof m!=='boolean')||!Array.isArray(p.r)||p.r.length>6||new Set(p.r).size!==p.r.length||p.r.some(id=>!Object.hasOwn(triggerMap,id))||!Array.isArray(p.t)||p.t.length>3||p.t.some(t=>!t||Object.keys(t).some(k=>!['label','kind','group'].includes(k))||typeof t.label!=='string'||t.label.length>128||!['like','boundary'].includes(t.kind)||!Object.hasOwn(GROUPS,t.group))||![null,'leadToYield','yieldToLead'].includes(p.g)||p.p!==undefined&&(!p.p||typeof p.p!=='object'||Array.isArray(p.p)||JSON.stringify(p.p)!==JSON.stringify(normalizePersonal(p.p))))throw Error('共有URLの内容を確認してください。');
+  const triggerMap=Object.fromEntries([...TRIGGERS,{id:'voiceReceive',label:'囁きに弱い'},{id:'voiceGive',label:'声で仕掛けたい'},{id:'restraintGive',label:'合図で止めたい'},{id:'restraintReceive',label:'合図を待ちたい'},{id:'brat',label:'強がりからの陥落'}].map(t=>[t.id,t]));
+  if(!p||Object.keys(p).some(k=>!['v','i','c','m','d','a','r','t','p','g'].includes(k))||p.v!==6||p.i!==INSTRUMENT||p.c!==null&&!Object.hasOwn(TYPES,p.c)||!Array.isArray(p.d)||p.d.length!==DIMENSIONS.length||p.d.some((d,i)=>!validTuple(d,DIMENSIONS[i].branches?Math.max(...DIMENSIONS[i].branches.map(items=>items.length)):DIMENSIONS[i].items.length))||!Array.isArray(p.a)||p.a.length!==4||p.a.some(a=>!validTuple(a,2))||!Array.isArray(p.m)||p.m.length!==4||p.m.some(m=>typeof m!=='boolean')||!Array.isArray(p.r)||p.r.length>6||new Set(p.r).size!==p.r.length||p.r.some(id=>!Object.hasOwn(triggerMap,id))||!Array.isArray(p.t)||p.t.length>3||p.t.some(t=>!t||Object.keys(t).some(k=>!['label','kind','group'].includes(k))||typeof t.label!=='string'||t.label.length>128||!['like','boundary'].includes(t.kind)||!Object.hasOwn(GROUPS,t.group))||![null,'leadToYield','yieldToLead'].includes(p.g)||p.p!==undefined&&(!p.p||typeof p.p!=='object'||Array.isArray(p.p)||JSON.stringify(p.p)!==JSON.stringify(normalizePersonal(p.p))))throw Error('共有URLの内容を確認してください。');
   const dims=DIMENSIONS.map((d,i)=>({...d,...expand(p.d[i])}));
   const aux=Object.fromEntries(Object.keys(AUX_ITEMS).map((id,i)=>[id,expand(p.a[i])]));
-  if(p.c&&AXES.some(([l,r,a,b],i)=>{const left=dims.find(d=>d.id===l),right=dims.find(d=>d.id===r);return left.n<3||right.n<3||left.score>right.score&&p.c[i]!==a||left.score<right.score&&p.c[i]!==b;}))throw Error('共有URLの内容を確認してください。');
+  if(p.c&&AXES.some(([l,r,a,b],i)=>{const left=dims.find(d=>d.id===l),right=dims.find(d=>d.id===r);return left.n<(left.minimum||3)||right.n<(right.minimum||3)||left.score>right.score&&p.c[i]!==a||left.score<right.score&&p.c[i]!==b;}))throw Error('共有URLの内容を確認してください。');
   if(p.g==='leadToYield'&&!strong(dims.find(d=>d.id==='yield'))||p.g==='yieldToLead'&&!strong(dims.find(d=>d.id==='lead')))throw Error('共有URLの内容を確認してください。');
   const result=assemble(dims,aux,p.c,p.m,p.r.map(id=>({id,label:triggerMap[id].label})),p.g);
   return {...(p.p?personalize(result,p.p):result),tags:organizeTags(p.t.map(t=>({...t,manual:true})))};
 }
 export function readResultLink(value){
-  const text=value.trim();if(/^H[45]\./.test(text))return decodeResult(text);
+  const text=value.trim();if(/^H[456]\./.test(text))return decodeResult(text);
   try{return decodeResult(new URLSearchParams(new URL(text).hash.slice(1)).get('share'));}catch{throw Error('受け取った共有URLかコードを確認してください。');}
 }
 export function compareResults(a,b,{aLabel='あなた',bLabel='相手'}={}){
@@ -130,7 +136,7 @@ export function compareResults(a,b,{aLabel='あなた',bLabel='相手'}={}){
   const lines=[];
   if(high(a,'lead')&&high(b,'yield'))lines.push({title:'あなたが導き、相手が委ねる',text:'主導したい側と、預けたい側が重なる。どんな進め方が好きか、そこから話せそう。'});
   if(high(b,'lead')&&high(a,'yield'))lines.push({title:'相手が導き、あなたが委ねる',text:'相手のリードと、あなたが預けたい気持ちが重なる。任せたいところを一つ伝えてみよう。'});
-  if(high(a,'lead')&&high(b,'lead'))lines.push({title:'主導権を譲りたくない二人',text:'どちらも自分から流れを作りたい。交代する楽しさがあるか、先に確かめたい組み合わせ。'});
+  if(high(a,'lead')&&high(b,'lead'))lines.push({title:'二人とも、流れを作りたい',text:'どちらも自分から流れを作りたい。交代する楽しさがあるか、先に確かめたい組み合わせ。'});
   if(high(a,'sadism')&&high(b,'masochism')||high(b,'sadism')&&high(a,'masochism'))lines.push({title:'仕掛ける側と、翻弄されたい側',text:'焦らしや反応の駆け引きが話題になりそう。好きな強さや言葉は、それぞれに聞いてみよう。'});
   if(give(a)&&receive(b)||give(b)&&receive(a))lines.push({title:'甘やかす側と、甘えたい側',text:'世話を焼きたい気持ちと、受け取りたい気持ちが重なる。どんな甘やかされ方が好きか話してみよう。'});
   if(receive(a)&&receive(b)&&!give(a)&&!give(b))lines.push({title:'二人とも、甘やかされ待ち',text:'どちらも受け取りたい側。交代で甘やかすなら、何をしてほしい？'});

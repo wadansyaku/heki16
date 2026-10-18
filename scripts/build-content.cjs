@@ -2,7 +2,7 @@ const fs=require('node:fs'),path=require('node:path');
 const {execFileSync}=require('node:child_process');
 const {escapeHtml:esc,validateMonetization,renderAffiliateSection,affiliateCss}=require('./monetization.cjs');
 const root=path.resolve(__dirname,'..'),dist=path.join(root,'dist'),origin='https://heki16-pro.aiyume.workers.dev';
-for(const file of ['app.mjs','content.mjs','diagnosis.mjs','tags.mjs','profile.mjs','share-compat.mjs'])execFileSync(process.execPath,['--check',path.join(root,'src',file)],{stdio:'pipe'});
+for(const file of ['app.mjs','content.mjs','diagnosis.mjs','tags.mjs','profile.mjs','share-compat.mjs','share-v5.mjs'])execFileSync(process.execPath,['--check',path.join(root,'src',file)],{stdio:'pipe'});
 const {TYPES}=JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',"import {TYPES} from './src/content.mjs';console.log(JSON.stringify({TYPES}));"],{cwd:root,encoding:'utf8'}));
 const campaigns=validateMonetization(JSON.parse(fs.readFileSync(path.join(root,'config/monetization.json'),'utf8')));
 fs.rmSync(dist,{recursive:true,force:true});fs.mkdirSync(dist,{recursive:true});
@@ -13,7 +13,7 @@ fs.writeFileSync(path.join(dist,'app.css'),fs.readFileSync(path.join(root,'src/a
 const research=JSON.parse(fs.readFileSync(path.join(root,'config/research.json'),'utf8'));
 fs.writeFileSync(path.join(dist,'app.mjs'),fs.readFileSync(path.join(root,'src/app.mjs'),'utf8').replace('__TURNSTILE_SITEKEY__',research.sitekey));
 require('esbuild').buildSync({entryPoints:[path.join(root,'src/phrasing.mjs')],bundle:true,format:'esm',platform:'browser',minify:true,legalComments:'eof',outfile:path.join(dist,'phrasing.mjs')});
-for(const file of ['content.mjs','diagnosis.mjs','tags.mjs','profile.mjs','share-compat.mjs'])fs.copyFileSync(path.join(root,'src',file),path.join(dist,file));
+for(const file of ['content.mjs','diagnosis.mjs','tags.mjs','profile.mjs','share-compat.mjs','share-v5.mjs'])fs.copyFileSync(path.join(root,'src',file),path.join(dist,file));
 fs.copyFileSync(path.join(root,'src/favicon.svg'),path.join(dist,'favicon.svg'));
 const nav='<nav aria-label="サイト情報"><a href="/">診断する</a><a href="/types/">関係性図鑑</a><a href="/library/">読みもの</a><a href="/guide/">楽しみ方</a><a href="/privacy/">プライバシー</a><a href="/advertising/">広告について</a></nav>';
 const urls=['/'];
