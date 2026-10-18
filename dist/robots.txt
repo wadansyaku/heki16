@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://heki16-pro.aiyume.workers.dev/sitemap.xml

@@ -1,10 +1,18 @@
 {
   "name": "heki-16-pro",
-  "version": "16.64.3",
+  "version": "16.65.1",
   "private": true,
   "description": "HEKI-16 PRO — 16×64 profiles, independent vectors and group chemistry",
   "scripts": {
     "test": "node tests/core.cjs dist/index.html",
-    "serve": "python3 -m http.server 8766 --bind 127.0.0.1 --directory dist"
+    "serve": "python3 -m http.server 8766 --bind 127.0.0.1 --directory dist",
+    "build": "node scripts/prepare-deploy.cjs",
+    "verify": "npm run build && npm test && node tests/monetization.cjs && node tests/deployment.cjs",
+    "predeploy": "npm run verify",
+    "deploy": "wrangler deploy",
+    "preview": "npm run build && wrangler dev --ip 127.0.0.1 --port 8767"
+  },
+  "devDependencies": {
+    "wrangler": "4.151.1"
   }
 }

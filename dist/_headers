@@ -1,0 +1,14 @@
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-0q+JdOlScWOHcunpUk21uab1jW7C1deBQARHtKMcaB4=' 'sha256-iXpoiLSkx5NNPEXEw98y/zE6dYzsA+1rvqlO8MrAUas='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Strict-Transport-Security: max-age=31536000
+  Cache-Control: public, max-age=0, must-revalidate
+/version.json
+  X-Robots-Tag: noindex
+/THIRD_PARTY_NOTICES.txt
+  X-Robots-Tag: noindex
+/404
+  X-Robots-Tag: noindex
