@@ -10,14 +10,15 @@
   "assets": {
     "directory": "dist",
     "run_worker_first": [
-      "/api/*"
+      "/api/*",
+      "/s/*"
     ],
     "not_found_handling": "404-page",
     "binding": "ASSETS"
   },
   "main": "src/worker.mjs",
   "limits": {
-    "cpu_ms": 50
+    "cpu_ms": 250
   },
   "vars": {
     "SITE_ORIGIN": "https://heki16-pro.aiyume.workers.dev",

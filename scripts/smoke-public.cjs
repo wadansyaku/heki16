@@ -29,6 +29,10 @@ const origin = 'https://heki16-pro.aiyume.workers.dev';
   for(const route of ['/legacy','/legacy/','/legacy/index.html']){const r=await fetch(origin+route,{signal:AbortSignal.timeout(20000)});assert.equal(r.status,200);assert.equal(new URL(r.url).pathname,'/');checks.push({route,status:200,unifiedRedirect:true});}
   const {INSTRUMENT,CONSENT}=await import('../src/diagnosis.mjs');
   const blocked=await fetch(origin+'/api/research',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:JSON.stringify({id:crypto.randomUUID(),deletionToken:crypto.randomBytes(32).toString('base64url'),token:'heki16-synthetic-invalid-response',instrument:INSTRUMENT,consent:CONSENT,adult:true,mode:40,answers:Array.from({length:40},(_,i)=>i%5),groups:[0,0,0,0]})});assert.equal(blocked.status,403);checks.push({route:'/api/research',status:403,validFortyQuestionShapeInvalidBotRejected:true});
+  const config=await fetch(origin+'/api/config');assert.deepEqual(await config.json(),{localTest:false,instrument:'nocturne24-1'});checks.push({route:'/api/config',status:200,productionTestBypassDisabled:true});
+  const account=await fetch(origin+'/api/account');assert.deepEqual(await account.json(),{signedIn:false});checks.push({route:'/api/account',status:200,noPrivateData:true});
+  const listings=await fetch(origin+'/api/listings');assert.equal(listings.status,401);checks.push({route:'/api/listings',status:401,anonymousScrapingRejected:true});
+  const participant=await fetch(origin+'/api/participate',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin,'X-Nocturne':'1'},body:JSON.stringify({id:crypto.randomUUID(),consent:'nocturne-2026-10-19',adult:true,context:{timeframe:'recent',mood:'unset',timeBand:'unset'},persona:{age:'unset',gender:'unset'},token:'local-test-only'})});assert.equal(participant.status,403);checks.push({route:'/api/participate',status:403,localTestTokenRejected:true});
   const report={version:expected.version,origin,checkedAt:new Date().toISOString(),checks};
   console.log(JSON.stringify(report,null,2));
 })().catch(error=>{console.error(error.message);process.exitCode=1;});
