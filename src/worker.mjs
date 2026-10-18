@@ -1,4 +1,4 @@
-import {INSTRUMENT,CONSENT,validAnswers,DIMENSIONS} from './reflection.mjs';
+import {INSTRUMENT,CONSENT,validAnswers,DIMENSIONS,QUESTIONS,questionIds} from './reflection.mjs';
 const json=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'"}});
 const digest=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -31,7 +31,7 @@ export async function handleApi(request,env){
     if(!env.EVIDENCE||!env.DB)return json({ready:false});
     const file=await env.EVIDENCE.get('public/current.json');if(!file)return json({ready:false});
     const p=await file.json(),revision=await env.DB.prepare('SELECT revision FROM research_state WHERE id=1').first('revision');
-    if(p.revision!==revision)return json({ready:false});
+    if(p.instrument!==INSTRUMENT||p.revision!==revision)return json({ready:false});
     delete p.revision;return json(p);
   }
   const origin=request.headers.get('Origin');
@@ -63,23 +63,33 @@ export async function handleApi(request,env){
   try{await env.DB.prepare('INSERT OR IGNORE INTO submissions(id,deletion_hash,instrument,consent,mode,answers,groups_json,created_at,day) VALUES(?,?,?,?,?,?,?,?,?)').bind(b.id,deletionHash,INSTRUMENT,CONSENT,b.mode,JSON.stringify(b.answers),JSON.stringify(b.groups),now,day).run();}catch(e){if(String(e).includes('daily_limit'))return json({error:'capacity'},429);throw e;}
   return json({accepted:true},201);
 }
-const variance=arr=>{if(arr.length<2)return null;const m=arr.reduce((a,b)=>a+b,0)/arr.length;return arr.reduce((a,b)=>a+(b-m)**2,0)/(arr.length-1);};
 export function qualityReport(rows,now=Date.now()){
   const valid=rows.filter(r=>r.instrument===INSTRUMENT&&r.consent===CONSENT).flatMap(r=>{try{const a=JSON.parse(r.answers);return validAnswers(a,r.mode)?[{...r,a}]:[];}catch{return [];}});
   const complete=valid.filter(r=>r.mode===32&&r.a.every(v=>v!==null));
   const seen=new Set();
   const varied=complete.filter(r=>{const key=JSON.stringify(r.a);if(new Set(r.a).size<=1||seen.has(key))return false;seen.add(key);return true;});
   const cohortDays=new Set(varied.map(r=>r.day).filter(Boolean)).size;
-  const dimensions=DIMENSIONS.map((d,i)=>{
-    const items=[i,i+8,i+16,i+24],totals=varied.map(r=>items.reduce((s,j)=>s+r.a[j],0));
-    const totalVariance=variance(totals),itemVariance=items.map(j=>variance(varied.map(r=>r.a[j])));
-    const alpha=totalVariance>0?4/3*(1-itemVariance.reduce((a,b)=>a+b,0)/totalVariance):null;
-    const mean=totals.length?totals.reduce((a,b)=>a+b,0)/totals.length/4:null;
-    return {id:d.id,alpha:alpha===null?null:Math.round(alpha*1000)/1000,mean:mean===null?null:Math.round(mean*10)/10};
+  const itemRestById=new Map();
+  const facets=[...new Set(QUESTIONS.map(q=>q.facet))].map(id=>{
+    const items=QUESTIONS.filter(q=>q.facet===id).map(q=>q.id),k=items.length,n=varied.length;
+    const sums=Array(k).fill(0),squares=Array(k).fill(0),itemTotals=Array(k).fill(0);let totalSum=0,totalSquare=0;
+    for(const row of varied){let total=0;for(const item of items)total+=row.a[item];totalSum+=total;totalSquare+=total*total;for(let j=0;j<k;j++){const value=row.a[items[j]];sums[j]+=value;squares[j]+=value*value;itemTotals[j]+=value*total;}}
+    const totalVariation=n?totalSquare-totalSum*totalSum/n:0;
+    const itemVariation=sums.map((sum,j)=>n?squares[j]-sum*sum/n:0);
+    const alpha=n>1&&totalVariation>1e-9?k/(k-1)*(1-itemVariation.reduce((a,b)=>a+b,0)/totalVariation):null;
+    for(let j=0;j<k;j++){const covariance=n?itemTotals[j]-sums[j]*totalSum/n:0,restVariation=totalVariation+itemVariation[j]-2*covariance;const r=n>1&&itemVariation[j]>1e-9&&restVariation>1e-9?(covariance-itemVariation[j])/Math.sqrt(itemVariation[j]*restVariation):null;itemRestById.set(items[j],r===null?null:Math.round(r*1000)/1000);}
+    return {id,items,alpha:alpha===null?null:Math.round(alpha*1000)/1000,mean:n?Math.round(totalSum/n/k*10)/10:null};
   });
-  // Conservative operational gate, not proof of construct validity or population representativeness.
-  const eligible=varied.length>=200&&cohortDays>=7&&dimensions.every(d=>d.alpha!==null&&d.alpha>=.7&&d.alpha<1)&&complete.length>0&&(complete.length-varied.length)/complete.length<=.2;
-  return {instrument:INSTRUMENT,checkedAt:new Date(now).toISOString(),records:valid.length,complete:complete.length,usable:varied.length,cohortDays,dimensions,eligible,status:eligible?'reference_only':varied.length<200||cohortDays<7?'insufficient_data':'quality_hold',window:'latest-140-per-day-within-14-days'};
+  const dimensions=DIMENSIONS.map((d,i)=>({id:d.id,mean:facets.find(f=>f.id===d.id+(i<2?'_desired':'')).mean}));
+  const itemCounts=QUESTIONS.map(q=>({id:q.id,facet:q.facet,asked:0,notAsked:0,answered:0,skipped:0,distribution:[0,0,0,0,0]}));
+  for(const row of valid)for(const id of questionIds(row.mode)){const stat=itemCounts[id];stat.asked++;const value=row.a[id];if(value===null)stat.skipped++;else{stat.answered++;stat.distribution[value]++;}}
+  const items=QUESTIONS.map(q=>{
+    const stat=itemCounts[q.id],itemRest=itemRestById.get(q.id);
+    return {...stat,notAsked:valid.length-stat.asked,itemRest,flags:stat.answered>=50&&Math.max(...stat.distribution)/stat.answered>.85?['concentrated_responses']:itemRest!==null&&itemRest<0?['negative_item_rest']:[]};
+  });
+  // Separate fantasy/desired facets. Alpha remains an operational check, not content/structural validity.
+  const eligible=varied.length>=200&&cohortDays>=7&&facets.every(d=>d.alpha!==null&&d.alpha>=.7&&d.alpha<1)&&complete.length>0&&(complete.length-varied.length)/complete.length<=.2;
+  return {instrument:INSTRUMENT,checkedAt:new Date(now).toISOString(),records:valid.length,complete:complete.length,usable:varied.length,cohortDays,dimensions,facets,items,eligible,status:eligible?'reference_only':varied.length<200||cohortDays<7?'insufficient_data':'quality_hold',window:'latest-140-per-day-within-14-days'};
 }
 export async function runMaintenance(env,now=Date.now()){
   const day=new Date(now).toISOString().slice(0,10);
@@ -106,7 +116,7 @@ export async function runMaintenance(env,now=Date.now()){
     await env.DB.prepare('DELETE FROM daily_quota WHERE day<?').bind(new Date(now-30*86400000).toISOString().slice(0,10)).run();
     await env.DB.prepare('DELETE FROM maintenance WHERE day<?').bind(new Date(now-30*86400000).toISOString().slice(0,10)).run();
     const days=Array.from({length:14},(_,i)=>new Date(now-i*86400000).toISOString().slice(0,10));
-    const snapshot=await env.DB.batch([env.DB.prepare('SELECT revision FROM research_state WHERE id=1'),...days.map(day=>env.DB.prepare('SELECT instrument,consent,mode,answers,day FROM submissions WHERE day=? ORDER BY created_at DESC LIMIT 140').bind(day))]);
+    const snapshot=await env.DB.batch([env.DB.prepare('SELECT revision FROM research_state WHERE id=1'),...days.map(day=>env.DB.prepare('SELECT instrument,consent,mode,answers,day FROM submissions WHERE day=? AND instrument=? AND consent=? ORDER BY created_at DESC LIMIT 140').bind(day,INSTRUMENT,CONSENT))]);
     const revision=snapshot[0].results[0].revision,results=snapshot.slice(1).flatMap(r=>r.results);
     const report=qualityReport(results,now);
     await env.EVIDENCE.put('quality/latest.json',JSON.stringify(report),{httpMetadata:{contentType:'application/json'}});

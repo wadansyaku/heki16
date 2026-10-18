@@ -38,7 +38,7 @@ for (const match of read('dist/legacy/index.html').matchAll(/<script(?:\s[^>]*)?
 }
 assert.equal(manifest.indexSha256, crypto.createHash('sha256').update(html).digest('hex'));
 assert.equal(manifest.runtimeApiEnabled, true);
-assert.equal(manifest.engineVersion,'reflection-1');
+assert.equal(manifest.engineVersion,'reflection-2');
 assert.equal(manifest.researchIntakeEnabled,!!JSON.parse(read('config/research.json')).sitekey);
 assert.equal(config.vars.RESEARCH_ENABLED,manifest.researchIntakeEnabled?'true':'false');
 assert.ok(!js.includes('__TURNSTILE_SITEKEY__'));
@@ -54,7 +54,8 @@ const initialMain=html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/)[1];
 assert.ok(!initialMain.includes('${'),'Static content must not expose unresolved templates');
 assert.match(initialMain,/<h1>好きの輪郭を、/,'The primary content is readable before JavaScript');
 assert.match(initialMain,/<button[^>]+data-action="sample"[^>]*>見本を見る/,'The sample entry must be a real interactive control');
-assert.equal([...initialMain.matchAll(/data-action="start32"/g)].length,2,'Both start entries must be interactive');
+assert.equal([...initialMain.matchAll(/data-action="start18"/g)].length,2,'Both short-course entries must be interactive');
+assert.equal([...initialMain.matchAll(/data-action="start32"/g)].length,1,'The full course stays available');
 assert.ok(!/noindex/i.test(html));
 assert.match(html, /rel="canonical" href="https:\/\/heki16-pro\.aiyume\.workers\.dev\/"/);
 assert.match(read('dist/sitemap.xml'), /<loc>https:\/\/heki16-pro\.aiyume\.workers\.dev\/<\/loc>/);

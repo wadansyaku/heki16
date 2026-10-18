@@ -57,7 +57,7 @@ function hashAssets(folder, prefix='') {
 hashAssets(dist);
 fs.writeFileSync(path.join(dist, 'version.json'), JSON.stringify({
   version: pkg.version,
-  engineVersion: 'reflection-1',
+  engineVersion: 'reflection-2',
   legacyEngineVersion: '16.64.3',
   indexSha256: sha256(html),
   hosting: 'cloudflare-static-assets',
