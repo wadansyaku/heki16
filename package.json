@@ -1,8 +1,8 @@
 {
   "name": "heki-16-pro",
-  "version": "18.0.2",
+  "version": "19.0.0",
   "private": true,
-  "description": "HEKI16 — one 40-question, 16-type desire diagnosis",
+  "description": "HEKI16 — one 40-question experience with personal desire profiles",
   "scripts": {
     "test": "node tests/core.cjs src/legacy.html && node --test tests/reflection.test.mjs tests/diagnosis.test.mjs tests/worker.test.mjs",
     "serve": "python3 -m http.server 8766 --bind 127.0.0.1 --directory dist",
@@ -13,6 +13,8 @@
     "preview": "npm run build && wrangler dev --ip 127.0.0.1 --port 8767 --var SITE_ORIGIN:http://127.0.0.1:8767"
   },
   "devDependencies": {
+    "budoux": "0.9.3",
+    "esbuild": "0.28.2",
     "wrangler": "4.151.1"
   }
 }

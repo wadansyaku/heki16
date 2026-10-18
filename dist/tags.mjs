@@ -7,7 +7,7 @@ export function normalizeLabel(value) {
 }
 export function guessGroup(label) {
   if(/声|香|音|照明|雰囲気|場所|手触り|静か|空間/.test(label))return 'atmosphere';
-  if(/共依存|重愛|独占|主従|わからせ|甘やか|飼|攻守|リバ|焦らし|温度差|時間|距離|ペース|一緒|ふたり|ひとり|連絡|リード|主導|委ね|束縛|誘|関係|役回り|ギャップ/.test(label))return 'relationship';
+  if(/共依存|重愛|溺愛|褒め|二人|合図|目隠し|リボン|挑発|陥落|翻弄|余裕|独占|主従|わからせ|甘やか|飼|攻守|リバ|焦らし|温度差|時間|距離|ペース|一緒|ふたり|ひとり|連絡|リード|主導|委ね|束縛|誘|関係|役回り|ギャップ/.test(label))return 'relationship';
   if(/安心|思いやり|尊重|同意|信頼|誠実|優し|対話|自由|確かめ/.test(label))return 'values';
   return 'other';
 }

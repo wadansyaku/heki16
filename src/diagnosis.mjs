@@ -1,11 +1,13 @@
 import {INSTRUMENT,CONSENT,QUESTIONS,DIMENSIONS,TYPES,AXES} from './content.mjs';
 import {organizeTags,GROUPS} from './tags.mjs';
+import {makeProfile,normalizePersonal,personalize} from './profile.mjs';
+import {decodePrevious,encodePrevious} from './share-compat.mjs';
 export {INSTRUMENT,CONSENT,QUESTIONS,DIMENSIONS,TYPES,AXES};
 
 export function validAnswers(answers,mode=40){
   return mode===40&&Array.isArray(answers)&&answers.length===40&&Array.from(answers).every((v,i)=>v===null||Number.isInteger(v)&&QUESTIONS[i].choices.some(c=>c.value===v));
 }
-export const QUESTION_ORDER=Object.freeze(QUESTIONS.map(q=>q.id));
+export const QUESTION_ORDER=Object.freeze([7,...QUESTIONS.filter(q=>q.id!==7).map(q=>q.id)]);
 const at=(answers,number)=>answers[number-1];
 const selected=(answers,number)=>QUESTIONS[number-1].choices.find(c=>c.value===at(answers,number));
 function aggregate(values){
@@ -13,9 +15,9 @@ function aggregate(values){
   const sum=known.reduce((a,b)=>a+b,0),n=known.length,high=known.filter(v=>v>=3).length;
   return {sum,n,high,score:n?Math.round(sum/n*25):null};
 }
-const strong=(d,min=3)=>!!d&&d.n>=min&&d.high>=2&&d.score>=70;
-const AUX_ITEMS={giveCare:[19,29],receiveCare:[4,30],ownership:[10,31],switch:[7,16]};
-const level=d=>d.score===null?'まだわからない':d.n<3?'手がかりは少なめ':d.score>=70?'強く刺さる':d.score<=30?'今は控えめ':'ほどよく刺さる';
+const strong=(d,min=d?.minimum||3)=>!!d&&d.n>=min&&d.high>=2&&d.score>=70;
+const AUX_ITEMS={giveCare:[26,29],receiveCare:[4,30],ownership:[10,31],switch:[7,16]};
+const level=d=>d.score===null?'まだわからない':d.n<(d.minimum||3)?'手がかりは少なめ':d.score>=70?'強く刺さる':d.score<=30?'今は控えめ':'ほどよく刺さる';
 
 function chooseType(dims,answers){
   const byId=Object.fromEntries(dims.map(d=>[d.id,d]));
@@ -25,7 +27,7 @@ function chooseType(dims,answers){
     let difference=l.sum/l.n-r.sum/r.n;
     if(Math.abs(difference)<1e-9){
       // Scene choices confirm a direction; an unselected scene is never a negative score.
-      const votes=[8,36,37,40].map(n=>selected(answers,n)?.signals||{});
+      const votes=[36,37,40].map(n=>selected(answers,n)?.signals||{});
       difference=votes.reduce((s,v)=>s+(v[left]||0)-(v[right]||0),0);
       if(!difference){
         const topTwo=d=>DIMENSIONS.find(x=>x.id===d.id).items.map(i=>answers[i]).filter(Number.isInteger).sort((x,y)=>y-x).slice(0,2).reduce((x,y)=>x+y,0);
@@ -40,7 +42,7 @@ function chooseType(dims,answers){
 
 const SHADOWS={
   switch:{title:'相手次第で、立場が変わる',text:'相手の出方で、飼う側にも懐く側にも回る。'},
-  ownerPet:{title:'甘やかす側にも、甘える側にも',text:'普段は飼い主。褒められると、案外ちょろい。'},
+  ownerPet:{title:'甘やかす側にも、甘える側にも',text:'甘やかすのが好き。自分も褒められると、案外ちょろい。'},
   dualSM:{title:'余裕を崩すのも、崩されるのも',text:'相手の余裕は崩したい。自分の余裕も、ちょっと奪われたい。'},
   wetCool:{title:'距離は自由。特別は独占。',text:'一人の時間はほしい。でも、特別の座は譲らない。'},
   thrillCare:{title:'濃い駆け引きの、その先',text:'駆け引きは濃く。最後は全肯定で回収したい。'},
@@ -59,7 +61,7 @@ function shadowOf(byId,aux){
 }
 const TRIGGERS=[
   {id:'tease',label:'焦らしと翻弄',items:[3,5,33]},
-  {id:'tamed',label:'わからせられたい',items:[2,6,34]},
+  {id:'tamed',label:'わからせられたい',items:[6,27,34]},
   {id:'wet',label:'重愛・共依存',items:[9,11,13]},
   {id:'exclusive',label:'独占したい',items:[10,31]},
   {id:'gap',label:'自分にだけ見せる顔',items:[17,22,24]},
@@ -75,53 +77,53 @@ function triggersOf(answers){
   const found=TRIGGERS.map(t=>({...t,...aggregate(t.items.map(n=>at(answers,n)))})).filter(t=>strong(t,2));
   const voice=at(answers,20)>=3&&selected(answers,37)?.signals?.voice;
   if(voice)found.push({id:'voice',label:'声フェチ',score:100,n:2,high:2});
+  if(at(answers,28)>=3&&[38,39].some(n=>at(answers,n)>=3))found.push({id:'restraint',label:'二人だけの合図',score:90,n:2,high:2});
+  if(at(answers,34)>=3&&at(answers,36)===1)found.push({id:'brat',label:'強がりからの陥落',score:100,n:2,high:2});
   return found.sort((a,b)=>b.score-a.score||b.n-a.n).slice(0,6).map(({id,label})=>({id,label}));
 }
-function assemble(dims,aux,code,mixed,triggers){
-  const byId=Object.fromEntries(dims.map(d=>[d.id,d]));
-  const ranked=dims.filter(d=>strong(d)).sort((a,b)=>b.score-a.score);
-  const type=code?TYPES[code]:null,shadow=shadowOf(byId,aux);
-  let title=type?.title,description=type?.description;
-  if(!type){
-    if(!dims.some(d=>d.n>=3)){title='まだ開いていない、性癖の引き出し';description='答えられそうな場面から、あなたのスイッチを探してみよう。';}
-    else if(!ranked.length){title='いまは、強い決め手を探している';description='今回の場面には、まだ強く刺さるものが少なめ。あなたの言葉で好みを書き足してみよう。';}
-    else if(strong(byId.lead)&&strong(byId.yield)){title='主導も委ねも、どちらも本命';description='どちらか一役には収まらない。相手や場面で刺さる側が変わる。';}
-    else {title={lead:'主導する場面が、本命',yield:'委ねる場面が、本命',sadism:'相手の余裕が崩れる瞬間に弱い',masochism:'自分の余裕を奪われる展開に弱い',wet:'濃い関係に、深く沼る',cool:'二人きりの温度差に弱い',narrative:'関係性ごと、沼りたい',aesthetic:'五感から、一撃で沼る',extreme:'秘密のスリルが、好きの中心',pamper:'甘やかしと全肯定が、本命'}[ranked[0].id];description='一つの型にはまだ収まらないけれど、強く刺さる場面は見えている。';}
-  }
-  return {instrument:INSTRUMENT,typeCode:code,title,description,dims:dims.map(d=>({...d,level:level(d)})),aux,mixed,shadow,triggers};
+function assemble(dims,aux,code,mixed,triggers,gapId=null){
+  const shadow=shadowOf(Object.fromEntries(dims.map(d=>[d.id,d])),aux);
+  return {instrument:INSTRUMENT,typeCode:code,...makeProfile(dims,aux,triggers,shadow,gapId),dims:dims.map(d=>({...d,level:level(d)})),aux,mixed,shadow,triggers};
 }
 export function diagnose(answers){
   if(!validAnswers(answers))throw new TypeError('Invalid diagnosis answers');
-  const dims=DIMENSIONS.map(d=>({...d,...aggregate(d.items.map(i=>answers[i]))}));
+  const dims=DIMENSIONS.map(d=>{const branches=d.branches?.map(items=>aggregate(items.map(i=>answers[i]))).filter(a=>a.n===itemsMinimum(d));const value=branches?.length?branches.sort((a,b)=>b.score-a.score)[0]:aggregate(d.items.map(i=>answers[i]));return {...d,...value};});
   const aux=Object.fromEntries(Object.entries(AUX_ITEMS).map(([id,items])=>[id,aggregate(items.map(n=>at(answers,n)))]));
   const {code,mixed}=chooseType(dims,answers);
-  return assemble(dims,aux,code,mixed,triggersOf(answers));
+  const byId=Object.fromEntries(dims.map(d=>[d.id,d]));
+  const gapId=at(answers,8)===0&&strong(byId.yield)?'leadToYield':at(answers,8)===1&&strong(byId.lead)?'yieldToLead':null;
+  return {...assemble(dims,aux,code,mixed,triggersOf(answers),gapId),evidence:QUESTIONS.filter(q=>q.kind==='intensity'&&answers[q.id]>=3).map(q=>({id:q.id,question:q.text,answer:q.choices.find(c=>c.value===answers[q.id]).label})),uncertainCount:answers.filter(v=>v===null).length};
 }
+const itemsMinimum=d=>d.minimum||3;
 function validTuple(t,max){
   return Array.isArray(t)&&t.length===3&&t.every(Number.isInteger)&&t[1]>=0&&t[1]<=max&&t[2]>=0&&t[2]<=t[1]&&t[0]>=t[2]*3&&t[0]<=t[2]*4+(t[1]-t[2])*2;
 }
 const tuple=d=>[d.sum,d.n,d.high];
 const expand=t=>({sum:t[0],n:t[1],high:t[2],score:t[1]?Math.round(t[0]/t[1]*25):null});
 export function encodeResult(result,tags=[]){
-  const data={v:4,i:INSTRUMENT,c:result.typeCode,m:result.mixed,d:result.dims.map(tuple),a:Object.values(result.aux).map(tuple),r:result.triggers.map(t=>t.id),t:organizeTags(tags).slice(0,3).map(({label,group,kind})=>({label,group,kind}))};
-  return 'H4.'+btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(data)))).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+  if(result.instrument!==INSTRUMENT&&result.originalCode)return encodePrevious(result.originalCode,tags);
+  const data={v:5,i:INSTRUMENT,c:result.typeCode,m:result.mixed,d:result.dims.map(tuple),a:Object.values(result.aux).map(tuple),r:result.triggers.map(t=>t.id),t:organizeTags(tags).slice(0,3).map(({label,group,kind})=>({label,group,kind})),g:result.gap?.id||null,...(result.personal?{p:normalizePersonal(result.personal)}:{})};
+  return 'H5.'+btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(data)))).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
 }
 export function decodeResult(code){
-  if(typeof code!=='string'||code.length>4000||!/^H4\.[A-Za-z0-9_-]+$/.test(code))throw Error('受け取った共有URLを確認してください。');
+  if(typeof code!=='string'||code.length>4000||!/^H[45]\.[A-Za-z0-9_-]+$/.test(code))throw Error('受け取った共有URLを確認してください。');
+  if(code.startsWith('H4.'))return decodePrevious(code);
   let p;try{p=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(atob(code.slice(3).replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0))));}catch{throw Error('共有URLを読み取れませんでした。');}
-  const triggerMap=Object.fromEntries([...TRIGGERS,{id:'voice',label:'声フェチ'}].map(t=>[t.id,t]));
-  if(!p||Object.keys(p).some(k=>!['v','i','c','m','d','a','r','t'].includes(k))||p.v!==4||p.i!==INSTRUMENT||p.c!==null&&!Object.hasOwn(TYPES,p.c)||!Array.isArray(p.d)||p.d.length!==DIMENSIONS.length||p.d.some((d,i)=>!validTuple(d,DIMENSIONS[i].items.length))||!Array.isArray(p.a)||p.a.length!==4||p.a.some(a=>!validTuple(a,2))||!Array.isArray(p.m)||p.m.length!==4||p.m.some(m=>typeof m!=='boolean')||!Array.isArray(p.r)||p.r.length>6||new Set(p.r).size!==p.r.length||p.r.some(id=>!Object.hasOwn(triggerMap,id))||!Array.isArray(p.t)||p.t.length>3||p.t.some(t=>!t||Object.keys(t).some(k=>!['label','kind','group'].includes(k))||typeof t.label!=='string'||t.label.length>128||!['like','boundary'].includes(t.kind)||!Object.hasOwn(GROUPS,t.group)))throw Error('共有URLの内容を確認してください。');
+  const triggerMap=Object.fromEntries([...TRIGGERS,{id:'voice',label:'声フェチ'},{id:'restraint',label:'二人だけの合図'},{id:'brat',label:'強がりからの陥落'}].map(t=>[t.id,t]));
+  if(!p||Object.keys(p).some(k=>!['v','i','c','m','d','a','r','t','p','g'].includes(k))||p.v!==5||p.i!==INSTRUMENT||p.c!==null&&!Object.hasOwn(TYPES,p.c)||!Array.isArray(p.d)||p.d.length!==DIMENSIONS.length||p.d.some((d,i)=>!validTuple(d,DIMENSIONS[i].branches?2:DIMENSIONS[i].items.length))||!Array.isArray(p.a)||p.a.length!==4||p.a.some(a=>!validTuple(a,2))||!Array.isArray(p.m)||p.m.length!==4||p.m.some(m=>typeof m!=='boolean')||!Array.isArray(p.r)||p.r.length>6||new Set(p.r).size!==p.r.length||p.r.some(id=>!Object.hasOwn(triggerMap,id))||!Array.isArray(p.t)||p.t.length>3||p.t.some(t=>!t||Object.keys(t).some(k=>!['label','kind','group'].includes(k))||typeof t.label!=='string'||t.label.length>128||!['like','boundary'].includes(t.kind)||!Object.hasOwn(GROUPS,t.group))||![null,'leadToYield','yieldToLead'].includes(p.g)||p.p!==undefined&&(!p.p||typeof p.p!=='object'||Array.isArray(p.p)||JSON.stringify(p.p)!==JSON.stringify(normalizePersonal(p.p))))throw Error('共有URLの内容を確認してください。');
   const dims=DIMENSIONS.map((d,i)=>({...d,...expand(p.d[i])}));
   const aux=Object.fromEntries(Object.keys(AUX_ITEMS).map((id,i)=>[id,expand(p.a[i])]));
   if(p.c&&AXES.some(([l,r,a,b],i)=>{const left=dims.find(d=>d.id===l),right=dims.find(d=>d.id===r);return left.n<3||right.n<3||left.score>right.score&&p.c[i]!==a||left.score<right.score&&p.c[i]!==b;}))throw Error('共有URLの内容を確認してください。');
-  const result=assemble(dims,aux,p.c,p.m,p.r.map(id=>({id,label:triggerMap[id].label})));
-  return {...result,tags:organizeTags(p.t.map(t=>({...t,manual:true})))};
+  if(p.g==='leadToYield'&&!strong(dims.find(d=>d.id==='yield'))||p.g==='yieldToLead'&&!strong(dims.find(d=>d.id==='lead')))throw Error('共有URLの内容を確認してください。');
+  const result=assemble(dims,aux,p.c,p.m,p.r.map(id=>({id,label:triggerMap[id].label})),p.g);
+  return {...(p.p?personalize(result,p.p):result),tags:organizeTags(p.t.map(t=>({...t,manual:true})))};
 }
 export function readResultLink(value){
-  const text=value.trim();if(text.startsWith('H4.'))return decodeResult(text);
+  const text=value.trim();if(/^H[45]\./.test(text))return decodeResult(text);
   try{return decodeResult(new URLSearchParams(new URL(text).hash.slice(1)).get('share'));}catch{throw Error('受け取った共有URLかコードを確認してください。');}
 }
 export function compareResults(a,b,{aLabel='あなた',bLabel='相手'}={}){
+  if(a.instrument!==b.instrument)return [{title:'好きな場面から、話してみよう',text:'共有された名前や言葉から、どんな場面が好きか一つずつ聞いてみよう。'}];
   const get=(p,id)=>p.dims.find(d=>d.id===id);
   const high=(p,id)=>strong(get(p,id));
   const give=p=>strong(p.aux.giveCare,2),receive=p=>strong(p.aux.receiveCare,2);
