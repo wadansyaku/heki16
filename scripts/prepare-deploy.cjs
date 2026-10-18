@@ -8,12 +8,9 @@ const dist = path.join(root, 'dist');
 const html = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
-const legacy = fs.readFileSync(path.join(dist, 'legacy/index.html'),'utf8');
-const scripts = [...legacy.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)];
-const hashes = scripts.filter(match=>match[1].trim()).map(match => `'sha256-${crypto.createHash('sha256').update(match[1]).digest('base64')}'`);
 const policy = [
   "default-src 'none'",
-  `script-src 'self' https://challenges.cloudflare.com ${hashes.join(' ')}`,
+  "script-src 'self' https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
@@ -48,7 +45,7 @@ function hashAssets(folder, prefix='') {
   for (const entry of fs.readdirSync(folder, {withFileTypes:true})) {
     const relative = prefix + entry.name;
     if (entry.isDirectory()) hashAssets(path.join(folder, entry.name), relative + '/');
-    else if (!['_headers', 'version.json'].includes(relative)) {
+    else if (!['_headers', '_redirects', 'version.json'].includes(relative)) {
       const route = relative.endsWith('index.html') ? '/' + relative.slice(0, -10) : '/' + relative;
       assetHashes[route] = sha256(fs.readFileSync(path.join(folder, entry.name)));
     }
@@ -57,8 +54,7 @@ function hashAssets(folder, prefix='') {
 hashAssets(dist);
 fs.writeFileSync(path.join(dist, 'version.json'), JSON.stringify({
   version: pkg.version,
-  engineVersion: 'reflection-2',
-  legacyEngineVersion: '16.64.3',
+  engineVersion: 'unified40-1',
   indexSha256: sha256(html),
   hosting: 'cloudflare-static-assets',
   runtimeApiEnabled: true,

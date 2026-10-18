@@ -26,6 +26,9 @@ const origin = 'https://heki16-pro.aiyume.workers.dev';
   const reference=await fetch(origin+'/api/reference');assert.equal(reference.status,200);assert.deepEqual(await reference.json(),{ready:false});checks.push({route:'/api/reference',status:200,emptyReference:true});
   const invalid=await fetch(origin+'/api/research',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:'{}'});assert.equal(invalid.status,expected.researchIntakeEnabled?400:503);checks.push({route:'/api/research',status:invalid.status,invalidRejected:true});
   const cross=await fetch(origin+'/api/research',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://example.org'},body:'{}'});assert.equal(cross.status,403);checks.push({route:'/api/research',status:403,crossOriginRejected:true});
+  for(const route of ['/legacy','/legacy/','/legacy/index.html']){const r=await fetch(origin+route,{signal:AbortSignal.timeout(20000)});assert.equal(r.status,200);assert.equal(new URL(r.url).pathname,'/');checks.push({route,status:200,unifiedRedirect:true});}
+  const {INSTRUMENT,CONSENT}=await import('../src/diagnosis.mjs');
+  const blocked=await fetch(origin+'/api/research',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:JSON.stringify({id:crypto.randomUUID(),deletionToken:crypto.randomBytes(32).toString('base64url'),token:'heki16-synthetic-invalid-response',instrument:INSTRUMENT,consent:CONSENT,adult:true,mode:40,answers:Array.from({length:40},(_,i)=>i%5),groups:[0,0,0,0]})});assert.equal(blocked.status,403);checks.push({route:'/api/research',status:403,validFortyQuestionShapeInvalidBotRejected:true});
   const report={version:expected.version,origin,checkedAt:new Date().toISOString(),checks};
   console.log(JSON.stringify(report,null,2));
 })().catch(error=>{console.error(error.message);process.exitCode=1;});

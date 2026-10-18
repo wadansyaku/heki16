@@ -1,10 +1,10 @@
 {
   "name": "heki-16-pro",
-  "version": "17.1.1",
+  "version": "18.0.2",
   "private": true,
-  "description": "HEKI16 — evidence-aware reflection, free tags and consented research",
+  "description": "HEKI16 — one 40-question, 16-type desire diagnosis",
   "scripts": {
-    "test": "node tests/core.cjs src/legacy.html && node --test tests/reflection.test.mjs tests/worker.test.mjs",
+    "test": "node tests/core.cjs src/legacy.html && node --test tests/reflection.test.mjs tests/diagnosis.test.mjs tests/worker.test.mjs",
     "serve": "python3 -m http.server 8766 --bind 127.0.0.1 --directory dist",
     "build": "node scripts/prepare-deploy.cjs",
     "verify": "npm run build && npm test && node tests/monetization.cjs && node tests/deployment.cjs",
