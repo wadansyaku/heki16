@@ -1,6 +1,6 @@
 {
-  "version": "21.0.2",
-  "engineVersion": "nocturne24-1",
+  "version": "22.0.2",
+  "engineVersion": "nocturne24-2",
   "indexSha256": "3232d0eb264edee8f9e269381a50583a2cfc7b92e76effc16af56c7a6ef9298d",
   "hosting": "cloudflare-static-assets",
   "runtimeApiEnabled": true,
@@ -9,8 +9,8 @@
     "/404.html": "3d92bbf02d96b3509a3f489731c4cc01dd5bfc8900abc21e6365ad5b795e393c",
     "/THIRD_PARTY_NOTICES.txt": "7a52b5ec1b14821648e4ae87a0287956f3ea311aeec5ed2722d7bd8443c1f0e6",
     "/advertising/": "52ab00246a640d09de6aad40b62dd07a3a1f10383dc6a88260f56df410158905",
-    "/app.css": "6c773c3d840c13ee741e46da500a18dc4a181fd4269a394ab0d3d10da21378d1",
-    "/app.mjs": "84cc9dc26c1b5c3fda1d371b906f94b94adbd26b7e99dc9db8c552116b434732",
+    "/app.css": "9a8ab97dd916f3a9bfc75ab744e517217aec66bd7027b3946830747abb656f4e",
+    "/app.mjs": "1b555599e37e4e802036d4a5d42fd6de22069c7150d04d68ae3bc0b4bc8680ea",
     "/content.mjs": "23dba9f332318908772206852dacc60012896ec08a622ca922782e0b75377a2f",
     "/diagnosis.mjs": "c76ba8c222e1dffb390e14b7fe9c755794cef5ccf267d286b9a9a26ef44255f5",
     "/evidence/": "ccde15ea7e8d09729ced25794cb92fda71d34ab54d22f7ac546cb5f7732614f6",
@@ -21,7 +21,8 @@
     "/library/conversation/": "718d804da8fa66598974902d6d3bc2279b1bedcfce6af1b65591983cfaa8a9b0",
     "/library/fantasy/": "6ed3ea04eb9f0f287eb40d7b70bdb6698c2eff2567a9770d55381f1dee61d47f",
     "/library/": "18ddbc3e95827f4f56c6e615b55b83f3924bac601f532194e627f15a210871cc",
-    "/nocturne.mjs": "cae3b8c7241b7bbe59b14ebcd94cb24ec48e1ea991596488fd92d89794c351c6",
+    "/nocturne-v1.mjs": "cae3b8c7241b7bbe59b14ebcd94cb24ec48e1ea991596488fd92d89794c351c6",
+    "/nocturne.mjs": "bbc1174db754e3d9797154de1d8f8b11a3f3c612f3c9338f2bb8517083fc8391",
     "/phrasing.mjs": "815916bded6186830856242ead235392727fa8cc3ac66532fa1997e61a1a8086",
     "/privacy/": "9052dc97105b3bef072b60a33c2d75959cfab596b258c3d44f10650d3baaa0a2",
     "/profile.mjs": "fd5895883de76fef4a92feecb9c4d58f8be3f460e442da065b47ccc515af2e21",
@@ -47,6 +48,6 @@
     "/types/SWNP/": "a98ffe012df6b3e636b7b9797714ca7cb7c20d54bcbb85eb8c7c20704354a3dd",
     "/types/SWNX/": "3e11adf1fc8cb745b9cfe050facfa4b57e3ae48813c89652efa2b1908447dea8",
     "/types/": "fe8376b6ba22cd24c23df7c1102ce58de7efdbf9d993e6f5c6b218a9fd289ef5",
-    "/vault.mjs": "e2aabdbe70095a7cf12f5036a9fe2f36492d753a8d3530d1508589f60a71ab01"
+    "/vault.mjs": "708e8bb2dc2a2e862e370386d6cb5893a23cbd06b114d0ccfeee1a25b744b009"
   }
 }

@@ -1,4 +1,5 @@
-import {INSTRUMENT,CONSENT,SCENES,FACETS,MOODS,AGES,GENDERS,validAnswers,emptyAnswers,diagnose,publicCard,validCard,compare} from './nocturne.mjs';
+import {diagnose as previousDiagnose,validAnswers as previousValidAnswers} from './nocturne-v1.mjs';
+import {INSTRUMENT,PREVIOUS_INSTRUMENT,CONSENT,SCENES,FACETS,MOODS,AGES,GENDERS,validAnswers,emptyAnswers,diagnose,publicCard,listingCard,validCard,compare} from './nocturne.mjs';
 const DAY=86400000,UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,KEY=/^[A-Za-z0-9_-]{43}$/,ID=/^[A-Za-z0-9_-]{16}$/;
 const paths=new Set(['/api/config','/api/account','/api/blocks','/api/unblock','/api/participate','/api/progress','/api/complete','/api/persona','/api/recovery/create','/api/recovery/login','/api/logout','/api/account/delete','/api/record/delete','/api/share','/api/listings','/api/listing','/api/interest','/api/block','/api/report']);
 const reply=(value,status=200,headers={})=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'",...headers}});
@@ -21,8 +22,8 @@ async function account(request,env,now){
   return env.DB.prepare('SELECT a.id,a.recovery_hash,s.token_hash,s.created_at AS session_created FROM nocturne_sessions s JOIN nocturne_accounts a ON a.id=s.account_id WHERE s.token_hash=? AND s.expires_at>?').bind(await hash(token),now).first();
 }
 async function record(env,id,owner){return UUID.test(id||'')?env.DB.prepare('SELECT * FROM nocturne_records WHERE id=? AND account_id=?').bind(id,owner).first():null;}
-function presentRecord(row){return {id:row.id,answers:JSON.parse(row.answers),dwell:JSON.parse(row.dwell),visited:row.visited,cursor:row.cursor,revision:row.revision,context:{timeframe:row.timeframe,mood:row.mood,timeBand:row.time_band},persona:{age:row.age,gender:row.gender},createdAt:row.created_at,completedAt:row.completed_at,profile:row.profile?JSON.parse(row.profile):null};}
-async function latest(env,owner){return env.DB.prepare('SELECT * FROM nocturne_records WHERE account_id=? AND completed_at IS NOT NULL AND instrument=? ORDER BY completed_at DESC LIMIT 1').bind(owner,INSTRUMENT).first();}
+function presentRecord(row){return {id:row.id,instrument:row.instrument,answers:JSON.parse(row.answers),dwell:JSON.parse(row.dwell),visited:row.visited,cursor:row.cursor,revision:row.revision,context:{timeframe:row.timeframe,mood:row.mood,timeBand:row.time_band},persona:{age:row.age,gender:row.gender},createdAt:row.created_at,completedAt:row.completed_at,profile:row.profile?JSON.parse(row.profile):null};}
+async function latest(env,owner){return env.DB.prepare('SELECT * FROM nocturne_records WHERE account_id=? AND completed_at IS NOT NULL AND instrument IN (?,?) ORDER BY completed_at DESC LIMIT 1').bind(owner,INSTRUMENT,PREVIOUS_INSTRUMENT).first();}
 async function verification(b,request,env,verify){return loopback(env)&&new URL(request.url).origin===env.SITE_ORIGIN&&b.token==='local-test-only'||typeof b.token==='string'&&b.token.length<=2048&&await verify(b.token,env);}
 async function makeSession(env,owner,now){const token=random(32);await env.DB.batch([env.DB.prepare('INSERT INTO nocturne_sessions(token_hash,account_id,created_at,expires_at) VALUES(?,?,?,?)').bind(await hash(token),owner,now,now+30*DAY),env.DB.prepare('DELETE FROM nocturne_sessions WHERE account_id=? AND token_hash NOT IN (SELECT token_hash FROM nocturne_sessions WHERE account_id=? ORDER BY created_at DESC LIMIT 10)').bind(owner,owner)]);return token;}
 async function blocked(env,a,b){return !!await env.DB.prepare('SELECT 1 AS blocked FROM nocturne_blocks WHERE (actor=? AND target=?) OR (actor=? AND target=?) LIMIT 1').bind(a,b,b,a).first();}
@@ -47,7 +48,7 @@ export async function handleNocturne(request,env,verify){
   if(!get&&env.RESEARCH_ENABLED!=='true'&&!['/api/account/delete','/api/record/delete','/api/logout','/api/block','/api/unblock','/api/report'].includes(path)&&!(path==='/api/listing'&&b.publish===false))return reply({error:'unavailable'},503);
   if(path==='/api/account'){
     if(!who)return reply({signedIn:false});
-    const rows=await env.DB.prepare('SELECT * FROM nocturne_records WHERE account_id=? AND instrument=? ORDER BY created_at DESC LIMIT 30').bind(who.id,INSTRUMENT).all();
+    const rows=await env.DB.prepare('SELECT * FROM nocturne_records WHERE account_id=? AND instrument IN (?,?) ORDER BY created_at DESC LIMIT 30').bind(who.id,INSTRUMENT,PREVIOUS_INSTRUMENT).all();
     const listing=await env.DB.prepare('SELECT id,card,intent,age,gender,expires_at,hidden FROM nocturne_listings WHERE account_id=?').bind(who.id).first();
     const mutual=await env.DB.prepare('SELECT p.id,p.card FROM nocturne_interests i JOIN nocturne_interests j ON j.actor=i.target AND j.target=i.actor JOIN nocturne_listings p ON p.account_id=i.target JOIN nocturne_listings own ON own.account_id=i.actor WHERE i.actor=? AND p.hidden=0 AND own.hidden=0 AND i.actor NOT IN (SELECT id FROM nocturne_accounts WHERE moderation_hold=1) AND i.target NOT IN (SELECT id FROM nocturne_accounts WHERE moderation_hold=1) AND p.expires_at>? AND own.expires_at>? AND NOT EXISTS(SELECT 1 FROM nocturne_blocks b WHERE (b.actor=i.actor AND b.target=i.target) OR (b.actor=i.target AND b.target=i.actor)) LIMIT 30').bind(who.id,now,now).all();
     return reply({signedIn:true,scope:who.id,hasRecovery:!!who.recovery_hash,records:rows.results.map(presentRecord),listing:listing&&listing.expires_at>now?{...listing,card:JSON.parse(listing.card)}:null,mutual:mutual.results.map(r=>({id:r.id,card:JSON.parse(r.card)}))});
@@ -61,7 +62,8 @@ export async function handleNocturne(request,env,verify){
     return reply({signedIn:true},200,{'Set-Cookie':cookie(token,env)});
   }
   if(path==='/api/participate'){
-    if(!keys(b,['id','consent','adult','context','persona','token'])||!UUID.test(b.id||'')||b.consent!==CONSENT||b.adult!==true||!validPersona(b.persona)||!validContext(b.context))return reply({error:'invalid_request'},400);
+    if(!keys(b,['id','instrument','consent','adult','context','persona','token'])||!UUID.test(b.id||'')||!['nocturne24-1',INSTRUMENT].includes(b.instrument||PREVIOUS_INSTRUMENT)||b.consent!==CONSENT||b.adult!==true||!validPersona(b.persona)||!validContext(b.context))return reply({error:'invalid_request'},400);
+    const instrument=b.instrument||PREVIOUS_INSTRUMENT;
     let token=null,pending=[];
     if(!who){
       if(!await verification(b,request,env,verify))return reply({error:'verification'},403);
@@ -72,9 +74,10 @@ export async function handleNocturne(request,env,verify){
       ];who={id:owner};
     }
     const existing=await record(env,b.id,who.id);
+    if(existing&&existing.instrument!==instrument)return reply({error:'conflict'},409);
     if(!existing){
       const conflict=await env.DB.prepare('SELECT id FROM nocturne_records WHERE id=?').bind(b.id).first();if(conflict)return reply({error:'conflict'},409);
-      pending.push(env.DB.prepare('INSERT INTO nocturne_records(id,account_id,instrument,consent,answers,dwell,timeframe,mood,age,gender,time_band,created_at,last_seen) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(b.id,who.id,INSTRUMENT,CONSENT,JSON.stringify(emptyAnswers()),JSON.stringify(Array(24).fill(0)),b.context.timeframe,b.context.mood,b.persona.age,b.persona.gender,b.context.timeBand,now,now));
+      pending.push(env.DB.prepare('INSERT INTO nocturne_records(id,account_id,instrument,consent,answers,dwell,timeframe,mood,age,gender,time_band,created_at,last_seen) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(b.id,who.id,instrument,CONSENT,JSON.stringify(emptyAnswers()),JSON.stringify(Array(24).fill(0)),b.context.timeframe,b.context.mood,b.persona.age,b.persona.gender,b.context.timeBand,now,now));
       await env.DB.batch(pending);
     }
     return reply({accepted:true,id:b.id,scope:who.id},201,token?{'Set-Cookie':cookie(token,env)}:{});
@@ -101,10 +104,11 @@ export async function handleNocturne(request,env,verify){
   if(path==='/api/progress'||path==='/api/complete'){
     if(!keys(b,['id','answers','dwell','visited','cursor','revision'])||!UUID.test(b.id||'')||!validAnswers(b.answers,{complete:path==='/api/complete'})||!Array.isArray(b.dwell)||b.dwell.length!==24||b.dwell.some(v=>!Number.isInteger(v)||v<0||v>1800000)||!Number.isInteger(b.visited)||b.visited<0||b.visited>16777215||!Number.isInteger(b.cursor)||b.cursor<0||b.cursor>=24||!Number.isInteger(b.revision)||b.revision<1||b.revision>10000)return reply({error:'invalid_request'},400);
     const own=await record(env,b.id,who.id);if(!own)return reply({error:'not_found'},404);
+    if(own.instrument===PREVIOUS_INSTRUMENT&&!previousValidAnswers(b.answers))return reply({error:'invalid_request'},400);
     if(path==='/api/complete'&&(b.visited!==16777215||b.cursor!==23))return reply({error:'invalid_request'},400);
     if(own.completed_at)return path==='/api/complete'&&own.answers===JSON.stringify(b.answers)?reply({saved:true,profile:JSON.parse(own.profile)}):reply({error:'already_complete'},409);
     if(b.revision<=own.revision)return reply({saved:true,stale:true});
-    const profile=path==='/api/complete'?diagnose(b.answers):null;
+    const profile=path==='/api/complete'?(own.instrument===PREVIOUS_INSTRUMENT?previousDiagnose(b.answers):diagnose(b.answers)):null;
     await env.DB.prepare('UPDATE nocturne_records SET answers=?,dwell=?,visited=?,cursor=?,revision=?,last_seen=?,completed_at=?,profile=? WHERE id=? AND account_id=? AND revision<? AND completed_at IS NULL').bind(JSON.stringify(b.answers),JSON.stringify(b.dwell),b.visited,b.cursor,b.revision,now,profile?now:null,profile?JSON.stringify(profile):null,b.id,who.id,b.revision).run();
     await env.DB.prepare('UPDATE nocturne_accounts SET last_seen=? WHERE id=?').bind(now,who.id).run();
     return reply({saved:true,...(profile?{profile}:{})});
@@ -141,7 +145,7 @@ export async function handleNocturne(request,env,verify){
     if(!b.publish){await env.DB.batch([env.DB.prepare('DELETE FROM nocturne_listings WHERE account_id=?').bind(who.id),env.DB.prepare('DELETE FROM nocturne_interests WHERE actor=? OR target=?').bind(who.id,who.id)]);return reply({published:false});}
     if(!['similar','complement','any'].includes(b.intent)||typeof b.showAge!=='boolean'||typeof b.showGender!=='boolean')return reply({error:'invalid_request'},400);
     const own=await record(env,b.recordId,who.id);if(!own?.profile||JSON.parse(own.profile).answered<12)return reply({error:'complete_first'},409);
-    const id=random(12),card=JSON.stringify(publicCard(JSON.parse(own.profile)));
+    const id=random(12),card=JSON.stringify(listingCard(JSON.parse(own.profile)));
     const old=await env.DB.prepare('SELECT hidden FROM nocturne_listings WHERE account_id=?').bind(who.id).first();const reports=await env.DB.prepare('SELECT COUNT(*) AS n FROM nocturne_reports WHERE target=?').bind(who.id).first('n');const held=await env.DB.prepare('SELECT moderation_hold FROM nocturne_accounts WHERE id=?').bind(who.id).first('moderation_hold');if(old?.hidden||held||reports>=3)return reply({error:'review_pending'},403);
     await env.DB.batch([
       env.DB.prepare('DELETE FROM nocturne_interests WHERE actor=? OR target=?').bind(who.id,who.id),
@@ -153,7 +157,7 @@ export async function handleNocturne(request,env,verify){
     const gender=url.searchParams.get('gender')||'',age=url.searchParams.get('age')||'',intent=url.searchParams.get('intent')||'',trait=url.searchParams.get('trait')||'',relation=url.searchParams.get('relation')||'any',cursor=url.searchParams.get('before');
     if(gender&&!Object.hasOwn(GENDERS,gender)||age&&!Object.hasOwn(AGES,age)||intent&&!['similar','complement','any'].includes(intent)||trait&&!FACETS.some(f=>f.id===trait)||!['any','similar','complement'].includes(relation)||cursor&&!/^\d{13}:[A-Za-z0-9_-]{16}$/.test(cursor))return reply({error:'invalid_request'},400);
     const before=cursor?Number(cursor.split(':')[0]):now+1,beforeId=cursor?cursor.split(':')[1]:'';
-    const traits=JSON.parse(own.profile).facets.filter(f=>f.strong).map(f=>f.id),pairs={lead:'yield',yield:'lead',sadism:'masochism',masochism:'sadism',giveCare:'receiveCare',receiveCare:'giveCare'};
+    const traits=JSON.parse(own.profile).facets.filter(f=>f.strong).map(f=>f.id),pairs={lead:'yield',yield:'lead',sadism:'masochism',masochism:'sadism',giveCare:'receiveCare',receiveCare:'giveCare',restraintGive:'restraintReceive',restraintReceive:'restraintGive',painGive:'painReceive',painReceive:'painGive'};
     const desired=relation==='similar'?traits:relation==='complement'?traits.map(id=>pairs[id]).filter(Boolean):[];
     const rows=await env.DB.prepare(`SELECT p.id,p.card,p.intent,p.age,p.gender,p.created_at,EXISTS(SELECT 1 FROM nocturne_interests i WHERE i.actor=? AND i.target=p.account_id) AS interested
       FROM nocturne_listings p WHERE p.account_id<>? AND p.hidden=0 AND p.account_id NOT IN (SELECT id FROM nocturne_accounts WHERE moderation_hold=1) AND p.expires_at>?
