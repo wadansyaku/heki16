@@ -2,7 +2,9 @@
 
 公開先: https://heki16-pro.aiyume.workers.dev/
 
-作業先: `/Users/Yodai/heki16`。サイト22.0.2 / 質問票 `nocturne24-2`。Gitリモートは未設定です。
+ソースコード: https://github.com/wadansyaku/heki16
+
+サイト22.0.2 / 質問票 `nocturne24-2`。
 
 ## 体験と設計
 
