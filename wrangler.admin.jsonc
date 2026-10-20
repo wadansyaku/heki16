@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nocturne-admin",
+  "main": "src/admin-worker.mjs",
+  "compatibility_date": "2026-10-18",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": false
+  },
+  "limits": {
+    "cpu_ms": 250
+  },
+  "vars": {
+    "ACCESS_AUD": "bf0f9cffdcf5e73d2b95a995e7a1c1e59ef0a1388c6483f5b1156808a50ec8b4",
+    "ACCESS_ISSUER": "https://medace.cloudflareaccess.com"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "heki16-research",
+      "database_id": "d43e53db-5065-411f-8a12-b74203e891e2"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "ADMIN_LIMIT",
+      "namespace_id": "164651812",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    }
+  ]
+}

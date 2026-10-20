@@ -1,10 +1,10 @@
 {
   "name": "heki-16-pro",
-  "version": "23.0.0",
+  "version": "24.0.0",
   "private": true,
   "description": "NOCTURNE — a private, contextual desire dossier",
   "scripts": {
-    "test": "node tests/core.cjs src/legacy.html && node --test tests/reflection.test.mjs tests/diagnosis.test.mjs tests/worker.test.mjs tests/nocturne.test.mjs tests/nocturne-service.test.mjs tests/presentation.test.mjs",
+    "test": "node tests/core.cjs src/legacy.html && node --test tests/reflection.test.mjs tests/diagnosis.test.mjs tests/worker.test.mjs tests/nocturne.test.mjs tests/nocturne-service.test.mjs tests/presentation.test.mjs tests/admin.test.mjs",
     "serve": "python3 -m http.server 8766 --bind 127.0.0.1 --directory dist",
     "build": "node scripts/prepare-deploy.cjs",
     "verify": "npm run build && npm test && node tests/monetization.cjs && node tests/deployment.cjs",

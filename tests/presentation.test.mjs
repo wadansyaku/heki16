@@ -31,3 +31,13 @@ test('old links move without losing share IDs, while recovery remains on the ori
   assert.equal(migrationResponse(new Request('https://heki16-pro.aiyume.workers.dev/api/recovery/create',{method:'POST'}),destination),null);
   assert.equal(migrationResponse(new Request('https://heki16-pro.aiyume.workers.dev/app.mjs'),destination),null);
 });
+
+test('basic questions require an explicit valid choice, including an intentional non-answer',async()=>{
+  const {firstMissingChoice}=await import('../src/presentation.mjs');
+  const {MOODS,AGES,GENDERS}=await import('../src/nocturne.mjs');
+  const opts={mood:MOODS,age:AGES,gender:GENDERS};
+  assert.equal(firstMissingChoice({mood:'',age:'',gender:''},opts),'mood');
+  assert.equal(firstMissingChoice({mood:'ordinary',age:'',gender:'man'},opts),'age');
+  assert.equal(firstMissingChoice({mood:'ordinary',age:'20-24',gender:'forged'},opts),'gender');
+  assert.equal(firstMissingChoice({mood:'unset',age:'unset',gender:'unset'},opts),undefined);
+});

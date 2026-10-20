@@ -12,3 +12,8 @@ export function historyComparison(current, rows, axes) {
   const before = rows.filter(row => row.id !== current.id && row.profile?.instrument === current.profile?.instrument && row.context?.timeframe === current.context?.timeframe && row.completedAt < current.completedAt).sort((a,b) => b.completedAt-a.completedAt)[0];
   return {before, items:axes.map(([id,label]) => ({id,label,now:facetRate(current.profile?.facets?.find(f=>f.id===id)),before:facetRate(before?.profile?.facets?.find(f=>f.id===id))}))};
 }
+
+// Empty placeholders are not consent to omit a demographic answer.
+export function firstMissingChoice(values, options) {
+  return Object.keys(options).find(key=>!Object.hasOwn(options[key],values[key]));
+}

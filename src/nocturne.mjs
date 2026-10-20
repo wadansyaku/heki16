@@ -108,7 +108,7 @@ export const SCENES=[
     "chapter": 0
   },
   {
-    "text": "余裕のある相手。自分だけに見せてほしい顔は？",
+    "text": "余裕のある相手。自分だけに見たい顔は？",
     "choices": [
       {
         "label": "自分に翻弄され、余裕をなくす顔",
@@ -124,7 +124,7 @@ export const SCENES=[
         ]
       },
       {
-        "label": "低い声で、こちらを導くときの顔",
+        "label": "低い声で、こちらを導く顔",
         "signals": [
           "voice",
           "yield"
@@ -147,7 +147,7 @@ export const SCENES=[
     "chapter": 0
   },
   {
-    "text": "今度は、自分が余裕をなくした。どうされたい？",
+    "text": "自分が余裕をなくしたとき、どうされたい？",
     "choices": [
       {
         "label": "逃げ道を残しつつ、もっと焦らされたい",
@@ -186,7 +186,7 @@ export const SCENES=[
     "chapter": 0
   },
   {
-    "text": "相手から「どうしてほしい？」と聞かれたら？",
+    "text": "相手に「どうしたい？」と委ねられたら？",
     "choices": [
       {
         "label": "自分が進め方を決めたい",
@@ -195,7 +195,7 @@ export const SCENES=[
         ]
       },
       {
-        "label": "相手が焦れるように、少し待たせたい",
+        "label": "すぐ答えず、相手を焦らしたい",
         "signals": [
           "sadism"
         ]
@@ -290,7 +290,7 @@ export const SCENES=[
         ]
       },
       {
-        "label": "言葉を交わさなくても落ち着く空気",
+        "label": "黙っていても落ち着く空気",
         "signals": [
           "quiet"
         ]
@@ -309,7 +309,7 @@ export const SCENES=[
         ]
       },
       {
-        "label": "呼び方や声が、二人だけのものになる",
+        "label": "二人だけの呼び方や声になる",
         "signals": [
           "voice",
           "story"
@@ -339,7 +339,7 @@ export const SCENES=[
     "chapter": 1
   },
   {
-    "text": "気を張っていた日の夜。いちばん欲しいのは？",
+    "text": "気を張った日の夜。いちばん欲しいのは？",
     "choices": [
       {
         "label": "判断を預けて、リードしてもらう時間",
@@ -355,7 +355,7 @@ export const SCENES=[
         ]
       },
       {
-        "label": "誰かを甘やかして、安心させる時間",
+        "label": "相手を甘やかして、安心させる時間",
         "signals": [
           "giveCare"
         ]
@@ -377,7 +377,7 @@ export const SCENES=[
     "chapter": 1
   },
   {
-    "text": "合意して痛みのある刺激を楽しむことには？",
+    "text": "合意の上で、痛みのある刺激を楽しむなら？",
     "choices": [
       {
         "label": "与える側に興味がある",
@@ -580,7 +580,7 @@ export const SCENES=[
         ]
       },
       {
-        "label": "動きを任せて、相手の合図を待ちたい",
+        "label": "自由を預けて、相手の合図を待ちたい",
         "signals": [
           "restraintReceive"
         ]
@@ -748,14 +748,14 @@ export const SCENES=[
         ]
       },
       {
-        "label": "動きや合図を、決める側",
+        "label": "自由や合図を、決める側",
         "signals": [
           "restraintGive",
           "intense"
         ]
       },
       {
-        "label": "動きや合図を、預ける側",
+        "label": "自由や合図を、預ける側",
         "signals": [
           "restraintReceive",
           "intense"
@@ -934,9 +934,9 @@ export const FACETS=[
   ['exclusive','特別でありたい','自分だけに見せる顔'],['story','二人だけの設定','役・呼び名・約束'],['voice','声に惹かれる','言葉づかいと囁き'],['style','装いに惹かれる','服と仕草の細部'],
   ['scent','香りに惹かれる','近い距離で感じる香り'],['touch','触れ合いに惹かれる','温もりと肌の感触'],['restraintGive','動きや合図を決めたい','合図や動きを決める側'],['restraintReceive','動きや合図を任せたい','合図や動きを任せる側'],['painGive','痛みを与えたい','痛みを含む刺激を与える側'],['painReceive','痛みを受けたい','痛みを含む刺激を受ける側']
 ].map(([id,label,detail])=>({id,label,detail}));
-export const MOODS={ordinary:'いつもどおり',soft:'甘えたい気分',playful:'駆け引きを楽しみたい',calm:'ゆっくり過ごしたい',unset:'決めずに答える'};
-export const AGES={'18-19':'18〜19歳','20-24':'20代前半','25-29':'20代後半','30-39':'30代','40-49':'40代','50+':'50代以上',unset:'答えない'};
-export const GENDERS={woman:'女性',man:'男性',diverse:'その他・どちらでもない',unset:'答えない'};
+export const MOODS={ordinary:'いつもどおり',soft:'甘えたい気分',playful:'駆け引きを楽しみたい',calm:'ゆっくり過ごしたい',unset:'回答しない'};
+export const AGES={'18-19':'18〜19歳','20-24':'20代前半','25-29':'20代後半','30-39':'30代','40-49':'40代','50+':'50代以上',unset:'回答しない'};
+export const GENDERS={woman:'女性',man:'男性',diverse:'その他・どちらでもない',unset:'回答しない'};
 export const BOUNDARIES={boundaryPain:'痛みは受けたくない',boundaryWords:'きつい言葉は苦手',boundaryControl:'生活までの束縛は望まない',boundaryRole:'役を決めつけないで'};
 export const CONTEXTS={contextTrust:'信頼で変わる',contextMood:'気分や疲れ具合で変わる',contextPartner:'相手によって変わる',contextScene:'場面によって変わる',contextStable:'好みは比較的変わらない'};
 const has=(q,signal)=>q.choices.some(c=>c.signals.includes(signal));
@@ -962,46 +962,46 @@ export function diagnose(answers){
   let title='まだ名づけていない、好きの余白',quote='好きな場面を、一つずつ。',summary='決め手になる場面は、まだ少なめ。名前に合わせず、自分が選んだ言葉から眺めてみよう。',focus=[];
   const candidates=[];
   const choose=(title,quote,summary,focus)=>candidates.push({title,quote,summary,focus});
-  if(strong('switch')&&strong('lead')&&strong('yield'))choose('主従逆転の共犯者','役は固定しない。交代するから、面白い。','導く時間も、任せる時間も欲しい。最初に決めた役のまま終わるより、途中で立場が変わる場面を繰り返し選びました。',['switch','lead','yield']);
-  if(strong('sadism')&&strong('masochism'))choose('余裕泥棒の、負けず嫌い','余裕は奪いたい。奪われるのも、嫌いじゃない。','相手の照れた顔が好き。でも、自分が照れる側にも惹かれる。攻める役と受ける役を、どちらも選んだ組み合わせです。',['sadism','masochism']);
-  if(strong('lead')&&strong('masochism')&&strong('voice'))choose('囁きで落ちる司令塔','流れは私が決める。でも、その声には弱い。','主導する側と、からかわれる側。両方を別々の場面でも選びました。声や言葉づかいにも、繰り返し惹かれています。',['lead','masochism','voice']);
-  if(strong('lead')&&strong('masochism'))choose('隙だらけの司令塔','仕切るのは私。照れるのも、私。','進め方は自分で決めたい。でも、いつも余裕のある側でいたいわけではない。相手にからかわれる場面にも、繰り返し惹かれています。',['lead','masochism']);
-  if(strong('yield')&&strong('sadism'))choose('手綱を預ける小悪魔','手綱は預ける。牙は抜かない。','相手のリードには乗りたい。それでも、相手を照れさせる一手は手放したくない。任せながら仕掛ける場面が、あなたの選んだ面白さです。',['yield','sadism']);
-  if(strong('lead')&&strong('giveCare'))choose('溺愛の飼い主','甘やかすなら、とことん。','自分から流れを作り、相手が気を抜くところまで甘やかしたい。任せてもらうことも、安心した顔を見ることも、あなたには楽しみのうち。',['lead','giveCare']);
-  if(strong('masochism')&&strong('receiveCare')&&strong('intense'))choose('飴と鞭に弱い、強がり','翻弄して。でも最後は、甘やかして。','濃い駆け引きに惹かれ、終わったあとは安心したい。強い場面と優しい余韻を、別々の問いでも選んでいます。',['masochism','receiveCare','intense']);
-  if(strong('giveCare')&&strong('receiveCare'))choose('甘やかし合う共犯者','甘やかす。甘やかされる。どちらも欲しい。','相手をいたわる喜びも、自分を受け止めてもらう安心も欲しい。片方の役に決めず、二人で行き来する場面を選んでいます。',['giveCare','receiveCare']);
-  if(strong('wet')&&strong('space'))choose('余白を飼う、重愛主義者','濃く愛して。自由な時間も、残して。','特別な関係には惹かれる。でも、普段の生活まで一緒にしたいとは限らない。濃さと距離の両方を選んだところが、あなたらしい組み合わせです。',['wet','space']);
-  if(strong('masochism')&&strong('brat'))choose('わからせ待ちの小悪魔','強がったぶん、最後は負けたい。','挑発してみたいし、最後は自分が照れる側に回りたい。「参りました」と言わされる展開を、ほかの駆け引きと一緒に選んでいます。',['brat','masochism']);
-  if(strong('sadism')&&strong('giveCare'))choose('意地悪な、溺愛主義者','余裕を崩して、最後は甘やかす。','相手の反応を引き出すのが好き。そのあと、安心させる側にも惹かれています。からかうことと、いたわることを一緒に楽しみたい組み合わせです。',['sadism','giveCare']);
-  if(strong('exclusive')&&strong('story'))choose('二人だけの共犯者','合言葉は、私たちだけに通じればいい。','二人にしか通じない呼び名や約束と、自分だけに見せる顔に惹かれています。誰とでも同じ関係より、二人の間で育つ特別さを選んでいます。',['exclusive','story']);
-  if(strong('yield')&&strong('receiveCare'))choose('溺愛待ちの忠犬','信頼したら、思いきり甘えたい。','相手に任せる時間と、気を張らずに甘える時間を選んでいます。誰にでも従いたいというより、信頼できる相手に受け止めてもらいたい組み合わせです。',['yield','receiveCare']);
-  if(strong('sadism'))choose('余裕泥棒','その澄ました顔を、崩したい。','相手の反応を引き出す場面を、繰り返し選んでいます。照れた顔や、変わる声。その一瞬に惹かれる好みが見えました。',['sadism']);
-  if(strong('masochism'))choose('翻弄待ちの、負けず嫌い','余裕のある相手に、余裕を奪われたい。','自分が照れたり、少しからかわれたりする場面を選んでいます。普段の役に関係なく、相手にペースを揺らされる時間に惹かれています。',['masochism']);
-  if(strong('lead'))choose('密室の司令塔','二人の時間は、私から始めたい。','誘うこと、進め方を決めること。自分から流れを作る場面を、繰り返し選んでいます。相手を攻めたいかどうかとは、別の好みです。',['lead']);
-  if(strong('yield'))choose('手綱を預ける自由人','決めない時間を、自分で選ぶ。','信頼する相手に判断を任せる場面を選んでいます。考える役から少し離れ、相手のリードに乗る時間に惹かれています。',['yield']);
-  if(strong('giveCare'))choose('溺愛を注ぐ甘党','気を抜いた顔を、私に見せて。','相手をいたわり、甘やかす場面を繰り返し選んでいます。相手が安心してくれることが、自分にとっても楽しさになる組み合わせです。',['giveCare']);
-  if(strong('receiveCare')&&strong('praise'))choose('褒めでほどける甘党','ちゃんとしてる私も、甘やかして。','褒めてもらう言葉と、気を張らずに甘える場面。その両方を繰り返し選んでいます。',['receiveCare','praise']);
+  if(strong('switch')&&strong('lead')&&strong('yield'))choose('主従逆転の共犯者','役は固定しない。交代するから、面白い。','導く展開も委ねる展開もどちらも欲しい。決まった上下のまま終わるより、途中で立場が入れ替わる流れに惹かれています。',['switch','lead','yield']);
+  if(strong('sadism')&&strong('masochism'))choose('余裕泥棒の、負けず嫌い','余裕は奪いたい。奪われるのも、嫌いじゃない。','相手を照れさせる展開も、自分が追い詰められる展開も両方選んでいます。攻めと受けを行き来する応酬が好きな組み合わせです。',['sadism','masochism']);
+  if(strong('lead')&&strong('masochism')&&strong('voice'))choose('囁きで落ちる司令塔','流れは私が決める。でも、その声には弱い。','自分から主導する展開を好みつつ、耳元の声やからかいには揺さぶられたい。仕切る役と乱される役の両方に惹かれています。',['lead','masochism','voice']);
+  if(strong('lead')&&strong('masochism'))choose('隙だらけの司令塔','仕切るのは私。照れるのも、私。','進め方は自分で決めたいけれど、常に余裕のある側ではいたくない。主導しながら相手にやり込められる展開にも惹かれています。',['lead','masochism']);
+  if(strong('yield')&&strong('sadism'))choose('手綱を預ける小悪魔','手綱は預ける。牙は抜かない。','相手のリードに身を任せつつ、相手を焦らす一手も手放さない。委ねながら余裕を崩しにいく展開に面白さを感じています。',['yield','sadism']);
+  if(strong('lead')&&strong('giveCare'))choose('溺愛の飼い主','甘やかすなら、とことん。','自分から流れを作り、相手が力を抜くまで存分に甘やかしたい。主導することと安心させることが重なる展開を望んでいます。',['lead','giveCare']);
+  if(strong('masochism')&&strong('receiveCare')&&strong('intense'))choose('飴と鞭に弱い、強がり','翻弄して。でも最後は、甘やかして。','濃い駆け引きで余裕を崩されたあと、優しく抱きしめて甘やかされたい。強い刺激と穏やかな保護の落差に惹かれています。',['masochism','receiveCare','intense']);
+  if(strong('giveCare')&&strong('receiveCare'))choose('甘やかし合う共犯者','甘やかす。甘やかされる。どちらも欲しい。','相手をいたわる展開も、自分が受け止められる展開も両方選んでいます。片方の役に決めず、優しさを贈り合う流れが好みです。',['giveCare','receiveCare']);
+  if(strong('wet')&&strong('space'))choose('余白を飼う、重愛主義者','濃く愛して。自由な時間も、残して。','二人きりの時間は濃く独占し合いたい一方で、一人の余白も手放したくない。密なつながりと心地よい距離を両立したい好みです。',['wet','space']);
+  if(strong('masochism')&&strong('brat'))choose('わからせ待ちの小悪魔','強がったぶん、最後は負けたい。','自分から挑発して仕掛けたあと、最後は相手に逆転されて照れる側に回りたい。「参った」と言わされる展開に惹かれています。',['brat','masochism']);
+  if(strong('sadism')&&strong('giveCare'))choose('意地悪な、溺愛主義者','余裕を崩して、最後は甘やかす。','少し意地悪をして相手の反応を引き出したあと、たっぷり甘やかして安心させたい。焦らしと保護をセットで楽しむ好みです。',['sadism','giveCare']);
+  if(strong('exclusive')&&strong('story'))choose('二人だけの共犯者','合言葉は、私たちだけに通じればいい。','二人だけの呼び名や秘密の設定と、自分にだけ見せる特別な表情に惹かれています。閉じられた世界観を共有したい好みです。',['exclusive','story']);
+  if(strong('yield')&&strong('receiveCare'))choose('溺愛待ちの忠犬','信頼したら、思いきり甘えたい。','判断を相手に預ける展開と、気を張らずに甘える展開を両方選んでいます。信頼した相手に丸ごと委ねて包まれたい好みです。',['yield','receiveCare']);
+  if(strong('sadism'))choose('余裕泥棒','その澄ました顔を、崩したい。','こちらの一手や言葉で相手の余裕が崩れ、表情や声が揺らぐ瞬間に惹かれています。反応を引き出す駆け引きが好きな好みです。',['sadism']);
+  if(strong('masochism'))choose('翻弄待ちの、負けず嫌い','余裕のある相手に、余裕を奪われたい。','焦らされたり見透かされたりして、ペースを乱される展開に惹かれています。相手の余裕に飲まれる時間を楽しみたい好みです。',['masochism']);
+  if(strong('lead'))choose('密室の司令塔','二人の時間は、私から始めたい。','最初の一歩から進め方まで、自分から流れを作る展開を選んでいます。相手を攻めたいかとは別に、主導権を握りたい好みです。',['lead']);
+  if(strong('yield'))choose('手綱を預ける自由人','決めない時間を、自分で選ぶ。','信頼する相手に判断を預け、考える役から離れて導かれる展開を選んでいます。自分の意思で身を任せる時間に惹かれる好みです。',['yield']);
+  if(strong('giveCare'))choose('溺愛を注ぐ甘党','気を抜いた顔を、私に見せて。','相手が力を抜いてくつろげるよう、優しくいたわり甘やかす展開を選んでいます。安心した顔を引き出すことに満たされる好みです。',['giveCare']);
+  if(strong('receiveCare')&&strong('praise'))choose('褒めでほどける甘党','ちゃんとしてる私も、甘やかして。','優しい言葉で肯定されながら、力を抜いて甘やかされる展開を選んでいます。褒め言葉とぬくもりで緊張がほどける好みです。',['receiveCare','praise']);
   if(strong('receiveCare'))choose('溺愛待ちの甘党','今日は、甘える側でいたい。','受け止めてもらうこと、安心して甘えること。気を張らない自分でいられる場面を、繰り返し選んでいます。',['receiveCare']);
   if(strong('voice'))choose('声に弱い収集家','その一言で、空気が変わる。','声や言葉づかいに惹かれる場面を選んでいます。何を言うかだけでなく、誰が、どんな声で言うかも大切にしたい好みです。',['voice']);
-  if(strong('style')&&strong('disarray'))choose('着崩れの観察者','整っているから、少しの乱れに弱い。','服や仕草の細部に惹かれる場面を選んでいます。全体の印象より、小さな変化を眺めるところに楽しさがありそうです。',['style','disarray']);
-  if(strong('style'))choose('装いの観察者','服と仕草、その細部に目が止まる。','服の質感や輪郭、身につけるもの、仕草の細部。目に残るものに惹かれる場面を選びました。',['style']);
-  if(strong('exclusive'))choose('特別を集める共犯者','私にだけ、見せてほしい。','自分だけに見せる顔や、二人だけの特別さに惹かれる場面を選んでいます。',['exclusive']);
-  if(strong('story'))choose('二人の世界の演出家','いつもの二人に、秘密の設定を。','役や呼び名、二人だけの約束を選んでいます。同じ二人でも、場面の設定が変わると面白くなりそうです。',['story']);
-  if(strong('restraintGive')&&strong('restraintReceive'))choose('手綱を替える共犯者','預ける楽しさも、預かる楽しさも。','合図を待つ側と出す側、動きを任せる側と決める側。どちらにも惹かれ、場面に合わせて役を替えたい組み合わせです。',['restraintGive','restraintReceive']);
-  if(strong('restraintGive'))choose('手綱を握る演出家','二人で決めた自由を、私が預かる。','合図を出したり、動きを少し制限したりする側を選びました。痛みを与えたいかどうかとは別に、自由を預かる役に惹かれています。',['restraintGive']);
-  if(strong('restraintReceive'))choose('自由を預ける冒険家','任せる範囲は、私が選ぶ。','合図を待つことや、動きを相手に任せる場面を選びました。普段の役や性格とは別に、二人で決めた自由を預ける時間に惹かれています。',['restraintReceive']);
-  if(strong('painGive')&&strong('painReceive'))choose('刺激を分け合う共犯者','強さも、役も、二人で決めたい。','痛みを含む刺激を与える側にも、受ける側にも惹かれています。からかいや主導権とは別に、刺激そのものを楽しみたい組み合わせです。',['painGive','painReceive']);
-  if(strong('painGive'))choose('刺激を仕掛ける演出家','その刺激を、私から届けたい。','痛みを含む刺激を、相手に与える側を選びました。相手に任せたいかどうかや、言葉の駆け引きとは別に惹かれる場面です。',['painGive']);
-  if(strong('painReceive'))choose('刺激待ちの冒険家','その強さに、少し踏み込みたい。','痛みを含む刺激を受ける側を、別々の場面で選びました。誰かに従いたいかどうかとは別に、刺激そのものに惹かれています。',['painReceive']);
+  if(strong('style')&&strong('disarray'))choose('着崩れの観察者','整っているから、少しの乱れに弱い。','きちんとした装いが少しずつ崩れていく瞬間に目を奪われます。整った姿に隙が生まれる変化の過程に惹かれる好みです。',['style','disarray']);
+  if(strong('style'))choose('装いの観察者','服と仕草、その細部に目が止まる。','服の質感やシルエット、二人だけの小物や仕草の細部に惹かれています。目に残る装いや視覚の記憶を大切にする好みです。',['style']);
+  if(strong('exclusive'))choose('特別を集める独占派','私にだけ、見せてほしい。','他の誰にも見せない無防備な顔や、二人だけの秘密に惹かれています。自分だけが知っている特別さを確かめ合いたい好みです。',['exclusive']);
+  if(strong('story'))choose('二人の世界の演出家','いつもの二人に、秘密の設定を。','主従などの役回りや二人だけの呼び名・合言葉に惹かれています。日常とは違う設定をまとうことで熱が高まる好みです。',['story']);
+  if(strong('restraintGive')&&strong('restraintReceive'))choose('手綱を替える遊戯者','預ける楽しさも、預かる楽しさも。','合図を出して待たせる側と、自由を預けて待つ側の両方を選んでいます。場面によって制限する役を交代して楽しみたい好みです。',['restraintGive','restraintReceive']);
+  if(strong('restraintGive'))choose('手綱を握る主導者','二人で決めた自由を、私が預かる。','自分の合図まで相手を待たせたり、自由を預かったりする展開を選んでいます。合意の上で動きを制限する役に惹かれる好みです。',['restraintGive']);
+  if(strong('restraintReceive'))choose('自由を預ける没入者','任せる範囲は、私が選ぶ。','動きを相手に任せて、合図を待つ展開を選んでいます。合意して自由を預けることで、相手との時間に深く没入したい好みです。',['restraintReceive']);
+  if(strong('painGive')&&strong('painReceive'))choose('刺激を分け合う探求者','強さも、役も、二人で決めたい。','合意した痛みの刺激を与える側にも受ける側にも惹かれています。立場の固定より、強い刺激そのものを分かち合いたい好みです。',['painGive','painReceive']);
+  if(strong('painGive'))choose('刺激を刻む仕掛け人','その刺激を、私から届けたい。','合意の上で、痛みを含む刺激を自分から与える展開を選んでいます。言葉の駆け引きとは別に、鮮烈な刺激を届けたい好みです。',['painGive']);
+  if(strong('painReceive'))choose('刺激待ちの探求者','その強さに、少し踏み込みたい。','合意の上で、痛みを含む強い刺激を受ける展開を選んでいます。誰かに従いたいかとは別に、鋭い刺激そのものに惹かれる好みです。',['painReceive']);
   if(strong('scent')&&strong('touch'))choose('距離ゼロの感覚派','香りと温もりに、弱い。','近づいたときの香りと、触れたときの温もり。役や駆け引きだけでは言い切れない、近い距離で感じるものを繰り返し選びました。',['scent','touch']);
-  if(strong('scent')&&strong('space'))choose('香りにほどける自由人','距離は大事。でも、その香りは近くで。','一人の時間や自分のペースを大切にしながら、相手の香りには近づきたい。距離を取ることと、感覚に惹かれることを両方選びました。',['scent','space']);
-  if(strong('scent'))choose('香りにさらわれる感覚派','近づいた理由は、言葉にできない香り。','声や装いとは別に、近い距離でわかる相手の香りを選びました。会ったあとに残る感覚にも、惹かれています。',['scent']);
-  if(strong('touch'))choose('温もりの共犯者','触れた温度が、いちばん残る。','近づいた気配や、肌の温もり、触れた感触を繰り返し選びました。強い演出よりも、触れ合うこと自体に惹かれる場面が見えました。',['touch']);
-  if(!candidates.length&&(strong('space')||strong('equal')))choose('余白を愛する自由人','近くにいたい。自分のままでも、いたい。','決まった役や強い演出より、対等さや自分のペースを選んでいます。それも、あなたが望む関係の一つです。',['space','equal']);
-  if(!candidates.length&&strong('quiet'))choose('飾らない、ふたり派','演出より、自然に近づきたい。','決まった役や強い駆け引きより、自然な会話や穏やかな時間を選びました。ここにない好みも、自分の言葉で足せます。',['quiet']);
+  if(strong('scent')&&strong('space'))choose('香りにほどける自由人','距離は大事。でも、その香りは近くで。','一人の余白や穏やかなペースを望みつつ、相手の香りには近くで触れたい。心地よい距離と至近距離の香りを両立したい好みです。',['scent','space']);
+  if(strong('scent'))choose('香りにさらわれる感覚派','近づいた理由は、言葉にできない香り。','近づいた瞬間のその人らしい香りや、あとまで記憶に残る香りを繰り返し選んでいます。空気や匂いから熱が動く好みです。',['scent']);
+  if(strong('touch'))choose('温もりに溶ける感覚派','触れた温度が、いちばん残る。','近づいた気配や、肌の温もり、触れた感触を繰り返し選びました。強い演出よりも、触れ合うこと自体に惹かれる場面が見えました。',['touch']);
+  if(!candidates.length&&(strong('space')||strong('equal')))choose('余白を愛する自由人','近くにいたい。自分のままでも、いたい。','上下関係や強い駆け引きより、対等な関係と一人の余白を選んでいます。無理のないペースで自然に向き合いたい好みです。',['space','equal']);
+  if(!candidates.length&&strong('quiet'))choose('飾らない、ふたり派','演出より、自然に近づきたい。','作られた台詞や役割より、言葉を交わさなくても落ち着く空気と穏やかな会話を好んでいます。自然体の親密さを望む傾向です。',['quiet']);
   const desires=Object.keys(signals).filter(s=>!s.startsWith('boundary')&&!s.startsWith('context')&&!['neutral','quiet'].includes(s));
   if(!candidates.length&&desires.length)choose('まだ決めない、沼の入口','刺さる場面は、もう少しずつ見つけたい。','いくつか惹かれる場面はあるけれど、同じ好みが繰り返し表れるほどには決まっていません。選んだ言葉を、そのまま持ち帰ってみよう。',desires.slice(0,2));
-  if(!candidates.length&&answers.filter(a=>a===0).length>=12)choose('選択肢の外にいる自由人','その好き、まだ選択肢にない。','多くの場面で「今回はなし」を選びました。無関心と決めつけず、ここにない好みを自分の言葉で足してみよう。',[]);
+  if(!candidates.length&&answers.filter(a=>a===0).length>=12)choose('選択肢の外にいる自由人','その好き、まだ選択肢にない。','多くの場面で「今回はなし」を選んでいます。定番の役割や駆け引きに当てはめず、自分の言葉で望む関係を足せる余白があります。',[]);
   const fit=c=>c.focus.length?c.focus.reduce((n,s)=>n+count(s)/Math.max(1,opportunities(s)),0)/c.focus.length+Math.min(2,c.focus.length-1)*.1:0;
   if(candidates.length)({title,quote,summary,focus}=candidates.sort((a,b)=>fit(b)-fit(a)||Number(b.focus.some(s=>['scent','touch','voice','style','restraintGive','restraintReceive','painGive','painReceive'].includes(s)))-Number(a.focus.some(s=>['scent','touch','voice','style','restraintGive','restraintReceive','painGive','painReceive'].includes(s))))[0]);
   const self=answers[0]===null?null:bits(answers[0])[0];

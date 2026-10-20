@@ -38,3 +38,6 @@ dialog{width:min(560px,calc(100vw - 20px));max-height:calc(100dvh - 20px);paddin
 @media(max-width:350px),(max-height:600px){.quiz .question-copy h1{font-size:18px;line-height:1.5}.choice{font-size:14px;min-height:44px;padding:7px 9px;line-height:1.45}.choices{gap:5px}.quiz-bottom{gap:3px;padding-top:6px}.quiz-secondary .btn{font-size:11px;padding:6px 4px;min-height:44px}.quiz-bottom>.primary{font-size:12px;min-width:80px;padding:7px 6px}.result-pane{padding:14px}.result-summary{font-size:14px}.result-name{font-size:25px}.result-tabs button{min-height:44px}.deck-bottom{min-height:44px}.deck-bottom .btn{min-height:44px}.result-pane h2{font-size:19px}.manual .evidence-answer{font-size:14px}}
 
 @media(max-height:600px){.manual section:first-child p:nth-of-type(n+3){display:none}.result-tabs button:nth-child(3){font-size:10px;letter-spacing:0;white-space:nowrap}}
+
+.frame-hint{font-size:12px!important;color:var(--muted);line-height:1.5;margin:7px 0 0;min-height:36px}.persona-fields{padding:10px 0;border-block:1px solid var(--line)}.persona-fields select{min-height:44px;font-size:14px}.consent-copy a{white-space:nowrap}.field-pair>*{min-width:0}
+@media(max-height:600px){.frame-hint{min-height:0}.name-pane{gap:9px}}

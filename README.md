@@ -78,7 +78,7 @@ npm run moderate -- hide <掲載IDまたは管理ID>
 npm run moderate -- dismiss <掲載IDまたは管理ID>
 ```
 
-分析画面は`/Users/Yodai/nocturne-admin/index.html`へ保存し、Cloudflare認証を使って更新します。入力に集計JSONだけを指定する`--input`と、出力先を変える`--output`も使えます。公開サイトに運営用の入り口や管理キーを置きません。管理者用ファイルは端末内だけに保存します。
+管理者画面は公開アプリと別のWorker（`wrangler.admin.jsonc`）で運用します。Cloudflare Accessで所有者のメールだけを許可し、WorkerでもAUDと所有者メールを検証してからD1の集計を読みます。`ADMIN_EMAIL`はWorkerのシークレットとして設定します。画面・スクリプト・集計APIすべてで認証を行い、回答の生データを返しません。公開サイトに管理者への導線は置きません。端末内で確認する場合は従来の`npm run analytics`も使えます。
 
 ## 保存期間・復旧・費用
 
@@ -98,6 +98,6 @@ Turnstileの成功・hostname・action、Originと専用ヘッダー、本人の
 
 公開先は `https://nocturne.aiyume.workers.dev/` です。以前の `heki16-pro` は `wrangler.move.jsonc` と `src/move-worker.mjs` で移転先へ案内し、定期集計は新しいWorkerだけが実行します。D1/R2は移転前と同じ保存先を使います。
 
-以前の共有リンクは識別子を保って新しいサイトへ案内します。ログインCookieと端末だけの記録はホストをまたいで読めないため、`https://heki16-pro.aiyume.workers.dev/?records=1` で引き継ぎキーの発行と以前の結果の閲覧を続けられます。キーや回答をURLに埋め込みません。旧サイトの受付を止めるときも、撤回と引き継ぎの経路は残してください。
+以前の共有リンクは識別子を保って新しいサイトへ案内します。ログインCookieと端末だけの記録はホストをまたいで読めないため、`https://heki16-pro.aiyume.workers.dev/?records=1` で引き継ぎキーの発行と以前の結果の閲覧を続けられます。公開UIには移転案内を表示しません。キーや回答をURLに埋め込みません。旧サイトの受付を止めるときも、撤回と引き継ぎの経路は残してください。
 
 「名前だけ」の共有は画像だけでなく、保存する公開カルテから説明・タグ・詳しい好みを取り除きます。年代や性別から回答や結果を補正しません。時間の比較は同じ質問票・同じ時期の区分で答えた過去の実記録に限り、未回答を0へ置き換えません。

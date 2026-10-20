@@ -34,7 +34,7 @@ test('scent and touch receive their own language instead of being erased by a pr
   const p=diagnose(a);assert.ok(p.focus.includes('scent')||p.focus.includes('touch'));assert.ok(p.tags.includes('香りに惹かれる'));assert.ok(p.tags.includes('触れ合いに惹かれる'));assert.ok(p.evidence.some(e=>e.id===7||e.id===14));
 });
 test('pain, teasing, leadership and the direction of restraint are independent',()=>{
-  const a=emptyAnswers();a[10]=2;a[19]=2;const p=diagnose(a);assert.equal(p.title,'刺激待ちの冒険家');assert.equal(p.signals.masochism,undefined);assert.equal(p.signals.yield,undefined);assert.equal(p.signals.painGive,undefined);
+  const a=emptyAnswers();a[10]=2;a[19]=2;const p=diagnose(a);assert.equal(p.title,'刺激待ちの探求者');assert.equal(p.signals.masochism,undefined);assert.equal(p.signals.yield,undefined);assert.equal(p.signals.painGive,undefined);
   const b=emptyAnswers();b[5]=1;assert.equal(diagnose(b).signals.restraintGive,undefined);b[13]=4;assert.equal(diagnose(b).signals.restraintReceive,undefined);
 });
 test('a specific nickname cannot claim praise or dishevelled clothing without those actual choices',()=>{
