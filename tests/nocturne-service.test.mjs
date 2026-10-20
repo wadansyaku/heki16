@@ -54,3 +54,26 @@ test('explicit none and four boundaries round-trip through the current API witho
  const rows=(await(await call(e,'/api/account',undefined,u.cookie)).json()).records;assert.equal(rows[0].answers[7],0);assert.equal(rows[0].answers[21],15);
  const legacy={...startBody(),instrument:'nocturne24-1'},r=await call(e,'/api/participate',legacy,u.cookie);assert.equal(r.status,201);assert.equal((await call(e,'/api/complete',{id:legacy.id,answers:a,dwell:Array(24).fill(0),visited:16777215,cursor:23,revision:2},u.cookie)).status,400);
 });
+
+test('name-only link stores and serves a redacted card, not just a censored image',async()=>{
+  const e=environment(),u=await user(e);
+  const result=await call(e,'/api/share',{id:u.id,tags:['private tag'],personal:'private note',nameOnly:true},u.cookie);
+  assert.equal(result.status,201);
+  const url=(await result.json()).url;
+  const publicResponse=await handleNocturne(new Request(url.replace('/s/','/api/share/')),e,verify);
+  const {card}=await publicResponse.json();
+  assert.deepEqual(card.tags,[]);assert.deepEqual(card.traits,[]);assert.equal(card.quote,'████████');
+  assert.ok(!JSON.stringify(card).includes('private'));
+  const stored=JSON.parse((await e.DB.prepare('SELECT card FROM nocturne_shares WHERE id=?').bind(url.split('/').pop()).first()).card);
+  assert.deepEqual(stored,card);
+});
+
+test('the previous 24-scene model completes with its own wording and logic after migration',async()=>{
+  const old=await import('../src/nocturne-v2.mjs'),e=environment(),b={...startBody(),instrument:'nocturne24-2'};
+  const started=await call(e,'/api/participate',b);assert.equal(started.status,201);
+  const cookie=started.headers.get('set-cookie').split(';')[0],a=Array(24).fill(1);
+  const done=await call(e,'/api/complete',{id:b.id,answers:a,dwell:Array(24).fill(0),visited:16777215,cursor:23,revision:2},cookie);
+  assert.equal(done.status,200);assert.deepEqual((await done.json()).profile,old.diagnose(a));
+  const account=await(await call(e,'/api/account',undefined,cookie)).json();
+  assert.equal(account.records[0].instrument,'nocturne24-2');assert.deepEqual(account.records[0].profile,old.diagnose(a));
+});

@@ -16,7 +16,7 @@ export function preserveInstrument(state,current,previousDiagnose){
   const d=state.draft;if(!d)return state;
   const saved=state.localRecords?.find(r=>r.id===d.id),instrument=d.instrument||saved?.profile?.instrument||'nocturne24-1';
   if(instrument===current)return {...state,draft:{...d,instrument}};
-  const profile=d.profile||saved?.profile||(instrument==='nocturne24-1'&&d.complete&&previousDiagnose?previousDiagnose(d.answers):null);
+  const profile=d.profile||saved?.profile||(['nocturne24-1','nocturne24-2'].includes(instrument)&&d.complete&&previousDiagnose?previousDiagnose(d.answers):null);
   if(d.complete&&profile){const row=saved||{id:d.id,profile,context:d.context,persona:d.persona,completedAt:d.completedAt};return {...state,draft:{...d,instrument,profile},localRecords:[row,...(state.localRecords||[]).filter(r=>r.id!==d.id)]};}
   return {...state,draft:null,pausedDrafts:[...(state.pausedDrafts||[]).filter(r=>r.id!==d.id),{...d,instrument}].slice(-5)};
 }

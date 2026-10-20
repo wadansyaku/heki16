@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-const origin = 'https://heki16-pro.aiyume.workers.dev';
+const origin = 'https://nocturne.aiyume.workers.dev';
 (async()=>{
   const expected = JSON.parse(fs.readFileSync('dist/version.json','utf8'));
   const response = await fetch(origin+'/version.json',{signal:AbortSignal.timeout(20000)});

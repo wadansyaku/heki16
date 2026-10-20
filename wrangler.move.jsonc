@@ -1,0 +1,59 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "heki16-pro",
+  "compatibility_date": "2026-10-18",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": false
+  },
+  "assets": {
+    "directory": "dist",
+    "run_worker_first": [
+      "/*"
+    ],
+    "not_found_handling": "404-page",
+    "binding": "ASSETS"
+  },
+  "main": "src/move-worker.mjs",
+  "limits": {
+    "cpu_ms": 250
+  },
+  "vars": {
+    "SITE_ORIGIN": "https://heki16-pro.aiyume.workers.dev",
+    "RESEARCH_ENABLED": "true",
+    "RECOVERY_MODE": "off"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "heki16-research",
+      "database_id": "d43e53db-5065-411f-8a12-b74203e891e2",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "EVIDENCE",
+      "bucket_name": "heki16-evidence"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "API_LIMIT",
+      "namespace_id": "164651810",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    },
+    {
+      "name": "GLOBAL_LIMIT",
+      "namespace_id": "164651811",
+      "simple": {
+        "limit": 120,
+        "period": 60
+      }
+    }
+  ]
+}

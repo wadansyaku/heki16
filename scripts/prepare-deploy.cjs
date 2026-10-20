@@ -54,7 +54,7 @@ function hashAssets(folder, prefix='') {
 hashAssets(dist);
 fs.writeFileSync(path.join(dist, 'version.json'), JSON.stringify({
   version: pkg.version,
-  engineVersion: 'nocturne24-2',
+  engineVersion: 'nocturne24-3',
   indexSha256: sha256(html),
   hosting: 'cloudflare-static-assets',
   runtimeApiEnabled: true,

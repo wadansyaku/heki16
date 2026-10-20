@@ -1,5 +1,9 @@
+import {visibleCard} from './presentation.mjs';
+import {diagnose as version2Diagnose,validAnswers as version2ValidAnswers} from './nocturne-v2.mjs';
 import {diagnose as previousDiagnose,validAnswers as previousValidAnswers} from './nocturne-v1.mjs';
 import {INSTRUMENT,PREVIOUS_INSTRUMENT,CONSENT,SCENES,FACETS,MOODS,AGES,GENDERS,validAnswers,emptyAnswers,diagnose,publicCard,listingCard,validCard,compare} from './nocturne.mjs';
+const supported=[INSTRUMENT,'nocturne24-2',PREVIOUS_INSTRUMENT];
+const modelFor=instrument=>instrument===PREVIOUS_INSTRUMENT?{diagnose:previousDiagnose,validAnswers:previousValidAnswers}:instrument==='nocturne24-2'?{diagnose:version2Diagnose,validAnswers:version2ValidAnswers}:{diagnose,validAnswers};
 const DAY=86400000,UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,KEY=/^[A-Za-z0-9_-]{43}$/,ID=/^[A-Za-z0-9_-]{16}$/;
 const paths=new Set(['/api/config','/api/account','/api/blocks','/api/unblock','/api/participate','/api/progress','/api/complete','/api/persona','/api/recovery/create','/api/recovery/login','/api/logout','/api/account/delete','/api/record/delete','/api/share','/api/listings','/api/listing','/api/interest','/api/block','/api/report']);
 const reply=(value,status=200,headers={})=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'",...headers}});
@@ -23,7 +27,7 @@ async function account(request,env,now){
 }
 async function record(env,id,owner){return UUID.test(id||'')?env.DB.prepare('SELECT * FROM nocturne_records WHERE id=? AND account_id=?').bind(id,owner).first():null;}
 function presentRecord(row){return {id:row.id,instrument:row.instrument,answers:JSON.parse(row.answers),dwell:JSON.parse(row.dwell),visited:row.visited,cursor:row.cursor,revision:row.revision,context:{timeframe:row.timeframe,mood:row.mood,timeBand:row.time_band},persona:{age:row.age,gender:row.gender},createdAt:row.created_at,completedAt:row.completed_at,profile:row.profile?JSON.parse(row.profile):null};}
-async function latest(env,owner){return env.DB.prepare('SELECT * FROM nocturne_records WHERE account_id=? AND completed_at IS NOT NULL AND instrument IN (?,?) ORDER BY completed_at DESC LIMIT 1').bind(owner,INSTRUMENT,PREVIOUS_INSTRUMENT).first();}
+async function latest(env,owner){return env.DB.prepare('SELECT * FROM nocturne_records WHERE account_id=? AND completed_at IS NOT NULL AND instrument IN (?,?,?) ORDER BY completed_at DESC LIMIT 1').bind(owner,...supported).first();}
 async function verification(b,request,env,verify){return loopback(env)&&new URL(request.url).origin===env.SITE_ORIGIN&&b.token==='local-test-only'||typeof b.token==='string'&&b.token.length<=2048&&await verify(b.token,env);}
 async function makeSession(env,owner,now){const token=random(32);await env.DB.batch([env.DB.prepare('INSERT INTO nocturne_sessions(token_hash,account_id,created_at,expires_at) VALUES(?,?,?,?)').bind(await hash(token),owner,now,now+30*DAY),env.DB.prepare('DELETE FROM nocturne_sessions WHERE account_id=? AND token_hash NOT IN (SELECT token_hash FROM nocturne_sessions WHERE account_id=? ORDER BY created_at DESC LIMIT 10)').bind(owner,owner)]);return token;}
 async function blocked(env,a,b){return !!await env.DB.prepare('SELECT 1 AS blocked FROM nocturne_blocks WHERE (actor=? AND target=?) OR (actor=? AND target=?) LIMIT 1').bind(a,b,b,a).first();}
@@ -48,7 +52,7 @@ export async function handleNocturne(request,env,verify){
   if(!get&&env.RESEARCH_ENABLED!=='true'&&!['/api/account/delete','/api/record/delete','/api/logout','/api/block','/api/unblock','/api/report'].includes(path)&&!(path==='/api/listing'&&b.publish===false))return reply({error:'unavailable'},503);
   if(path==='/api/account'){
     if(!who)return reply({signedIn:false});
-    const rows=await env.DB.prepare('SELECT * FROM nocturne_records WHERE account_id=? AND instrument IN (?,?) ORDER BY created_at DESC LIMIT 30').bind(who.id,INSTRUMENT,PREVIOUS_INSTRUMENT).all();
+    const rows=await env.DB.prepare('SELECT * FROM nocturne_records WHERE account_id=? AND instrument IN (?,?,?) ORDER BY created_at DESC LIMIT 30').bind(who.id,...supported).all();
     const listing=await env.DB.prepare('SELECT id,card,intent,age,gender,expires_at,hidden FROM nocturne_listings WHERE account_id=?').bind(who.id).first();
     const mutual=await env.DB.prepare('SELECT p.id,p.card FROM nocturne_interests i JOIN nocturne_interests j ON j.actor=i.target AND j.target=i.actor JOIN nocturne_listings p ON p.account_id=i.target JOIN nocturne_listings own ON own.account_id=i.actor WHERE i.actor=? AND p.hidden=0 AND own.hidden=0 AND i.actor NOT IN (SELECT id FROM nocturne_accounts WHERE moderation_hold=1) AND i.target NOT IN (SELECT id FROM nocturne_accounts WHERE moderation_hold=1) AND p.expires_at>? AND own.expires_at>? AND NOT EXISTS(SELECT 1 FROM nocturne_blocks b WHERE (b.actor=i.actor AND b.target=i.target) OR (b.actor=i.target AND b.target=i.actor)) LIMIT 30').bind(who.id,now,now).all();
     return reply({signedIn:true,scope:who.id,hasRecovery:!!who.recovery_hash,records:rows.results.map(presentRecord),listing:listing&&listing.expires_at>now?{...listing,card:JSON.parse(listing.card)}:null,mutual:mutual.results.map(r=>({id:r.id,card:JSON.parse(r.card)}))});
@@ -62,7 +66,7 @@ export async function handleNocturne(request,env,verify){
     return reply({signedIn:true},200,{'Set-Cookie':cookie(token,env)});
   }
   if(path==='/api/participate'){
-    if(!keys(b,['id','instrument','consent','adult','context','persona','token'])||!UUID.test(b.id||'')||!['nocturne24-1',INSTRUMENT].includes(b.instrument||PREVIOUS_INSTRUMENT)||b.consent!==CONSENT||b.adult!==true||!validPersona(b.persona)||!validContext(b.context))return reply({error:'invalid_request'},400);
+    if(!keys(b,['id','instrument','consent','adult','context','persona','token'])||!UUID.test(b.id||'')||!supported.includes(b.instrument||PREVIOUS_INSTRUMENT)||b.consent!==CONSENT||b.adult!==true||!validPersona(b.persona)||!validContext(b.context))return reply({error:'invalid_request'},400);
     const instrument=b.instrument||PREVIOUS_INSTRUMENT;
     let token=null,pending=[];
     if(!who){
@@ -104,11 +108,11 @@ export async function handleNocturne(request,env,verify){
   if(path==='/api/progress'||path==='/api/complete'){
     if(!keys(b,['id','answers','dwell','visited','cursor','revision'])||!UUID.test(b.id||'')||!validAnswers(b.answers,{complete:path==='/api/complete'})||!Array.isArray(b.dwell)||b.dwell.length!==24||b.dwell.some(v=>!Number.isInteger(v)||v<0||v>1800000)||!Number.isInteger(b.visited)||b.visited<0||b.visited>16777215||!Number.isInteger(b.cursor)||b.cursor<0||b.cursor>=24||!Number.isInteger(b.revision)||b.revision<1||b.revision>10000)return reply({error:'invalid_request'},400);
     const own=await record(env,b.id,who.id);if(!own)return reply({error:'not_found'},404);
-    if(own.instrument===PREVIOUS_INSTRUMENT&&!previousValidAnswers(b.answers))return reply({error:'invalid_request'},400);
+    if(!modelFor(own.instrument).validAnswers(b.answers))return reply({error:'invalid_request'},400);
     if(path==='/api/complete'&&(b.visited!==16777215||b.cursor!==23))return reply({error:'invalid_request'},400);
     if(own.completed_at)return path==='/api/complete'&&own.answers===JSON.stringify(b.answers)?reply({saved:true,profile:JSON.parse(own.profile)}):reply({error:'already_complete'},409);
     if(b.revision<=own.revision)return reply({saved:true,stale:true});
-    const profile=path==='/api/complete'?(own.instrument===PREVIOUS_INSTRUMENT?previousDiagnose(b.answers):diagnose(b.answers)):null;
+    const profile=path==='/api/complete'?modelFor(own.instrument).diagnose(b.answers):null;
     await env.DB.prepare('UPDATE nocturne_records SET answers=?,dwell=?,visited=?,cursor=?,revision=?,last_seen=?,completed_at=?,profile=? WHERE id=? AND account_id=? AND revision<? AND completed_at IS NULL').bind(JSON.stringify(b.answers),JSON.stringify(b.dwell),b.visited,b.cursor,b.revision,now,profile?now:null,profile?JSON.stringify(profile):null,b.id,who.id,b.revision).run();
     await env.DB.prepare('UPDATE nocturne_accounts SET last_seen=? WHERE id=?').bind(now,who.id).run();
     return reply({saved:true,...(profile?{profile}:{})});
@@ -132,9 +136,9 @@ export async function handleNocturne(request,env,verify){
     await env.DB.prepare('DELETE FROM nocturne_records WHERE id=? AND account_id=?').bind(b.id,who.id).run();return reply({deleted:true});
   }
   if(path==='/api/share'){
-    if(!keys(b,['id','tags','personal'])||!UUID.test(b.id||'')||!Array.isArray(b.tags)||b.tags.length>3||b.tags.some(s=>typeof s!=='string'||!s.trim()||s.length>24||/[<>\u0000-\u001f]/.test(s))||b.personal!==undefined&&(typeof b.personal!=='string'||b.personal.length>160||/[<>\u0000-\u001f]/.test(b.personal)))return reply({error:'invalid_request'},400);
+    if(!keys(b,['id','tags','personal','nameOnly'])||b.nameOnly!==undefined&&typeof b.nameOnly!=='boolean'||!UUID.test(b.id||'')||!Array.isArray(b.tags)||b.tags.length>3||b.tags.some(s=>typeof s!=='string'||!s.trim()||s.length>24||/[<>\u0000-\u001f]/.test(s))||b.personal!==undefined&&(typeof b.personal!=='string'||b.personal.length>160||/[<>\u0000-\u001f]/.test(b.personal)))return reply({error:'invalid_request'},400);
     const own=await record(env,b.id,who.id);if(!own?.profile)return reply({error:'not_found'},404);
-    const card=publicCard(JSON.parse(own.profile),b.tags.map(t=>t.trim()),b.personal?.trim());if(!validCard(card))return reply({error:'invalid_request'},400);
+    const card=visibleCard(publicCard(JSON.parse(own.profile),b.tags.map(t=>t.trim()),b.personal?.trim()),b.nameOnly===true);if(!validCard(card))return reply({error:'invalid_request'},400);
     const encoded=JSON.stringify(card),digest=await hash(encoded),saved=await env.DB.prepare('SELECT id FROM nocturne_shares WHERE account_id=? AND digest=? AND expires_at>?').bind(who.id,digest,now).first();
     if(saved)return reply({url:env.SITE_ORIGIN+'/s/'+saved.id});
     const id=random(12);await env.DB.prepare('DELETE FROM nocturne_shares WHERE account_id=? AND digest=? AND expires_at<=?').bind(who.id,digest,now).run();

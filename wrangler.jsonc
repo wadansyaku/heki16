@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "heki16-pro",
+  "name": "nocturne",
   "compatibility_date": "2026-10-18",
   "workers_dev": true,
   "preview_urls": false,
@@ -21,7 +21,7 @@
     "cpu_ms": 250
   },
   "vars": {
-    "SITE_ORIGIN": "https://heki16-pro.aiyume.workers.dev",
+    "SITE_ORIGIN": "https://nocturne.aiyume.workers.dev",
     "RESEARCH_ENABLED": "true",
     "RECOVERY_MODE": "off"
   },

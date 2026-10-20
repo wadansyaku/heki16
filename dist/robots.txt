@@ -3,4 +3,4 @@ Allow: /
 Disallow: /api/
 Disallow: /legacy/
 Disallow: /s/
-Sitemap: https://heki16-pro.aiyume.workers.dev/sitemap.xml
+Sitemap: https://nocturne.aiyume.workers.dev/sitemap.xml

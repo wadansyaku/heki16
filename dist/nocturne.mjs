@@ -1,84 +1,933 @@
-// Choice order carries no score. Only explicitly selected desires are evidence.
-export const INSTRUMENT='nocturne24-2';
+// Selected content is evidence; choice order, gender and mood never add strength.
+export const INSTRUMENT='nocturne24-3';
 export const PREVIOUS_INSTRUMENT='nocturne24-1';
 export const CONSENT='nocturne-2026-10-19';
-export const CHAPTERS=['二人のはじまり','近づき方と距離','刺さる場面','欲しいものと境界'];
-const option=(label,...signals)=>({label,signals});
-const scene=(text,choices,extra={})=>({text,choices,...extra});
+export const CHAPTERS=['二人の距離と主導権','近づき方と余韻','刺激と駆け引き','好きの核と境界線'];
 export const SCENES=[
-  scene('二人きりの自分。どんな役が似合うと思う？',[
-    option('自分からリードする'),option('相手のリードに乗る'),option('どちらの役も楽しむ'),option('役を決めず、対等でいたい'),option('まだわからない')
-  ],{self:true,single:true}),
-  scene('二人きりになった。どう始めたい？',[
-    option('私から誘って、流れを作る','lead'),option('誘われて、ついていきたい','yield'),option('焦らして、反応を見たい','sadism'),option('近づき方を、一緒に決める','equal'),option('今は、距離を保っていたい','space')
-  ]),
-  scene('相手に「今は、任せて」と言われたら？',[
-    option('次のことは考えず、任せたい','yield'),option('照れさせる一言を返したい','sadism'),option('甘やかしてくれるなら任せる','receiveCare'),option('今度は私に任せて、と誘う','lead'),option('任せる範囲は、一緒に決める','equal')
-  ]),
-  scene('余裕のある相手。どんな顔を見たい？',[
-    option('私の一言で、照れてほしい','sadism'),option('私にだけ、甘えてほしい','giveCare','exclusive'),option('落ち着いた声で誘ってほしい','voice','yield'),option('余裕をなくすほど求めてほしい','wet'),option('落ち着いたまま、一緒にいたい','space')
-  ]),
-  scene('今度は、自分が照れてしまった。相手に望むのは？',[
-    option('もう少し、からかってほしい','masochism'),option('かわいいね、と甘やかして','receiveCare','praise'),option('次は、私が仕掛ける番にして','switch','sadism'),option('何も言わず、そばにいて','quiet'),option('少し待って、自分のペースに','space')
-  ]),
-  scene('「今日は、好きにしていいよ」。何をしたい？',[
-    option('流れも合図も、私が決める','lead'),option('反応を見ながら、焦らしたい','sadism'),option('喜ぶことを、とことんしたい','giveCare'),option('途中で、相手に主導権を渡す','switch','yield'),option('役は決めず、二人で楽しむ','equal')
-  ]),
-  scene('深くつながるなら、どんな関係がいい？',[
-    option('お互いが、一番の特別でいたい','wet','exclusive'),option('私にだけ、弱さを見せてほしい','exclusive','giveCare'),option('会う時間は濃く。一人の時間も','space'),option('二人だけの約束を育てたい','story'),option('名前をつけず、自由でいたい','equal')
-  ]),
-  scene('相手が近づいた。ふと惹かれるのは？',[
-    option('声の低さや、息づかい','voice'),option('近づくとわかる、相手の香り','scent'),option('触れたときの、温もり','touch'),option('服の質感や、体の輪郭','style'),option('演出より、自然に話す時間','quiet')
-  ]),
-  scene('外ではきちんとしている相手。二人きりなら？',[
-    option('私にだけ、気を抜いた顔を','exclusive'),option('普段と違う言葉で誘ってほしい','voice','story'),option('整った服が少し崩れるところ','style','disarray'),option('いつもより甘く扱ってほしい','receiveCare'),option('普段と同じ距離が心地いい','space')
-  ]),
-  scene('一日中、気を張っていた。今、欲しい時間は？',[
-    option('相手に少しだけ任せたい','yield'),option('頑張ったね、と甘やかされたい','receiveCare','praise'),option('相手をいたわり、自分も休む','giveCare'),option('からかわれて、頭を休めたい','masochism'),option('一人で、気を抜きたい','space')
-  ]),
-  scene('合意のうえで、少し痛みのある刺激なら？',[
-    option('与える側が気になる','painGive'),option('受ける側が気になる','painReceive'),option('どちらの役も気になる','painGive','painReceive'),option('痛みより、優しい触れ合い','touch'),option('痛みのあることは望まない','neutral')
-  ]),
-  scene('濃い時間のあと。どう過ごしたい？',[
-    option('抱きしめられて安心したい','receiveCare'),option('相手をいたわって落ち着かせる','giveCare'),option('二人の世界から戻りたくない','wet'),option('気持ちを確かめ、一人の時間へ','space'),option('いつもの会話に戻りたい','quiet')
-  ]),
-  scene('耳元の声。惹かれるのは、どんな瞬間？',[
-    option('落ち着いた声で、指示される','voice','yield','restraintReceive'),option('私の一言で、相手の声が変わる','voice','sadism'),option('からかう声に、自分が照れる','voice','masochism'),option('優しい声で、褒めてもらう','voice','receiveCare','praise'),option('声の演出より自然な会話','quiet')
-  ]),
-  scene('服や身につけるもの。どこに惹かれる？',[
-    option('整った服が少しだけ崩れる','style','disarray'),option('制服やスーツの役柄に惹かれる','style','story'),option('首輪やチョーカー、手首の飾り','style'),option('近づいたときの、気配や温もり','touch'),option('服や小物へのこだわりはない','neutral')
-  ]),
-  scene('二人きりの余韻。残っていてほしいのは？',[
-    option('耳に残る、相手の声','voice'),option('近くにいたときの、香り','scent'),option('肌の温もりや、触れた感触','touch'),option('服や仕草の、目に残る細部','style'),option('感覚より、一緒に話したこと','quiet')
-  ]),
-  scene('合図を待つ遊び。自分なら？',[
-    option('私の合図まで、相手を待たせる','restraintGive'),option('相手の合図を、楽しみに待つ','restraintReceive'),option('待つ側と待たせる側を交代','switch','restraintGive','restraintReceive'),option('ルールを作らず、自由に楽しむ','equal'),option('待たせたり待つ遊びは望まない','neutral')
-  ]),
-  scene('二人だけの役や呼び名。試すなら？',[
-    option('私が導く役で、雰囲気を作る','story','lead'),option('導かれる役で、違う自分に','story','yield'),option('途中で役を入れ替えたい','story','switch'),option('呼び名を、二人の秘密にする','story','exclusive'),option('役を作らず、いつもの二人で','equal')
-  ]),
-  scene('少しいじわるな駆け引き。入りたい場面は？',[
-    option('相手の反応を見ながら焦らす','sadism'),option('余裕のある相手に翻弄される','masochism'),option('仕掛けたつもりが、逆転される','switch','masochism','brat'),option('照れた相手を、最後は甘やかす','sadism','giveCare'),option('駆け引きなしで気持ちを伝える','equal')
-  ]),
-  scene('わざと挑発した、その先。望む展開は？',[
-    option('「参りました」と言わされたい','brat','masochism','intense'),option('相手の強がりを、私が崩したい','sadism','intense'),option('勝つ側と負ける側を何度も交代','switch'),option('挑発しても、優しく受け止めて','receiveCare'),option('挑発するやり取りは望まない','neutral')
-  ]),
-  scene('合意のある強い演出。試したいのは？',[
-    option('相手に痛みのある刺激を与える','painGive','intense'),option('自分が痛みのある刺激を受ける','painReceive','intense'),option('相手の動きを少し制限する','restraintGive','intense'),option('自分の動きを相手に任せる','restraintReceive','intense'),option('強い演出より、穏やかな触れ合い','touch')
-  ]),
-  scene('好きな相手との時間。何が満たされるとうれしい？',[
-    option('自分が、一番に選ばれる','wet','exclusive'),option('気を張らない自分も受け止めて','receiveCare'),option('信頼して、相手に任せられる','yield'),option('私の一手で、相手の表情が変わる','sadism'),option('自分の望みを、自分で伝えたい','lead')
-  ],{motive:true}),
-  scene('楽しい時間でも、避けたいことは？',[
-    option('自分が痛みを受けたくない','boundaryPain'),option('傷つく言葉は、使わないで','boundaryWords'),option('普段の生活まで束縛しないで','boundaryControl'),option('同じ役だと、決めつけないで','boundaryRole'),option('この中では、まだ決められない','boundaryUnknown')
-  ],{boundary:true}),
-  scene('望むことが変わるとしたら、何がきっかけ？',[
-    option('相手への信頼が深まったとき','contextTrust'),option('疲れ具合や気分が変わるとき','contextMood'),option('相手によって役も変わりそう','contextPartner'),option('場所や雰囲気が変わったとき','contextScene'),option('同じ好みを楽しみたい','contextStable')
-  ],{context:true}),
-  scene('最後に、言ってほしい一言は？',[
-    option('「安心して甘えていいよ」','receiveCare'),option('「あなたに甘えられてよかった」','giveCare'),option('「これは、二人だけの秘密ね」','story','exclusive'),option('「次は、あなたに任せたい」','lead','switch'),option('「自分のペースで休んでね」','space')
-  ])
-].map((q,id)=>({...q,id,chapter:Math.floor(id/6),choices:q.choices.map((c,value)=>({...c,value}))}));
+  {
+    "text": "自分では、どんな役に惹かれると思う？",
+    "choices": [
+      {
+        "label": "自分がリードする",
+        "signals": []
+      },
+      {
+        "label": "相手に委ねる",
+        "signals": []
+      },
+      {
+        "label": "どちらの役も楽しむ",
+        "signals": []
+      },
+      {
+        "label": "上下を決めず、対等でいる",
+        "signals": []
+      },
+      {
+        "label": "まだ決められない",
+        "signals": []
+      }
+    ],
+    "self": true,
+    "single": true,
+    "id": 0,
+    "chapter": 0
+  },
+  {
+    "text": "二人きり。最初の一歩は、どうしたい？",
+    "choices": [
+      {
+        "label": "自分から引き寄せ、流れを決める",
+        "signals": [
+          "lead"
+        ]
+      },
+      {
+        "label": "相手に引き寄せられ、身を任せる",
+        "signals": [
+          "yield"
+        ]
+      },
+      {
+        "label": "わざと誘って、相手を焦らす",
+        "signals": [
+          "sadism"
+        ]
+      },
+      {
+        "label": "どちらからともなく、距離を縮める",
+        "signals": [
+          "equal"
+        ]
+      },
+      {
+        "label": "急がず、相手の様子を確かめる",
+        "signals": [
+          "space"
+        ]
+      }
+    ],
+    "id": 1,
+    "chapter": 0
+  },
+  {
+    "text": "「今日は全部、任せて」と言われたら？",
+    "choices": [
+      {
+        "label": "考える役を手放して、委ねたい",
+        "signals": [
+          "yield"
+        ]
+      },
+      {
+        "label": "挑発して、相手の余裕を崩したい",
+        "signals": [
+          "sadism"
+        ]
+      },
+      {
+        "label": "気を張らず、甘やかされたい",
+        "signals": [
+          "receiveCare"
+        ]
+      },
+      {
+        "label": "「むしろ私に任せて」と返したい",
+        "signals": [
+          "lead"
+        ]
+      },
+      {
+        "label": "お互いの希望を話して決めたい",
+        "signals": [
+          "equal"
+        ]
+      }
+    ],
+    "id": 2,
+    "chapter": 0
+  },
+  {
+    "text": "余裕のある相手。自分だけに見せてほしい顔は？",
+    "choices": [
+      {
+        "label": "自分に翻弄され、余裕をなくす顔",
+        "signals": [
+          "sadism"
+        ]
+      },
+      {
+        "label": "自分にだけ甘える、無防備な顔",
+        "signals": [
+          "giveCare",
+          "exclusive"
+        ]
+      },
+      {
+        "label": "低い声で、こちらを導くときの顔",
+        "signals": [
+          "voice",
+          "yield"
+        ]
+      },
+      {
+        "label": "自分だけを強く求めている顔",
+        "signals": [
+          "wet"
+        ]
+      },
+      {
+        "label": "無理せず、穏やかにくつろぐ顔",
+        "signals": [
+          "space"
+        ]
+      }
+    ],
+    "id": 3,
+    "chapter": 0
+  },
+  {
+    "text": "今度は、自分が余裕をなくした。どうされたい？",
+    "choices": [
+      {
+        "label": "逃げ道を残しつつ、もっと焦らされたい",
+        "signals": [
+          "masochism"
+        ]
+      },
+      {
+        "label": "「可愛いね」と、優しく甘やかされたい",
+        "signals": [
+          "receiveCare",
+          "praise"
+        ]
+      },
+      {
+        "label": "立場を逆転させて、相手を翻弄したい",
+        "signals": [
+          "switch",
+          "sadism"
+        ]
+      },
+      {
+        "label": "言葉を重ねず、そのまま寄り添いたい",
+        "signals": [
+          "quiet"
+        ]
+      },
+      {
+        "label": "いったん間を置いて、落ち着きたい",
+        "signals": [
+          "space"
+        ]
+      }
+    ],
+    "id": 4,
+    "chapter": 0
+  },
+  {
+    "text": "相手から「どうしてほしい？」と聞かれたら？",
+    "choices": [
+      {
+        "label": "自分が進め方を決めたい",
+        "signals": [
+          "lead"
+        ]
+      },
+      {
+        "label": "相手が焦れるように、少し待たせたい",
+        "signals": [
+          "sadism"
+        ]
+      },
+      {
+        "label": "相手が力を抜けるよう、甘やかしたい",
+        "signals": [
+          "giveCare"
+        ]
+      },
+      {
+        "label": "途中で、相手に主導権を渡したい",
+        "signals": [
+          "switch",
+          "yield"
+        ]
+      },
+      {
+        "label": "二人で、その都度決めたい",
+        "signals": [
+          "equal"
+        ]
+      }
+    ],
+    "id": 5,
+    "chapter": 0
+  },
+  {
+    "text": "特別な関係だと感じるのは、どんなとき？",
+    "choices": [
+      {
+        "label": "二人の時間を、濃く独占し合うとき",
+        "signals": [
+          "wet",
+          "exclusive"
+        ]
+      },
+      {
+        "label": "自分にだけ弱さを見せてくれたとき",
+        "signals": [
+          "exclusive",
+          "giveCare"
+        ]
+      },
+      {
+        "label": "大切にしつつ、一人の時間もあるとき",
+        "signals": [
+          "space"
+        ]
+      },
+      {
+        "label": "二人だけの設定や合言葉があるとき",
+        "signals": [
+          "story"
+        ]
+      },
+      {
+        "label": "上下なく、自然体でいられるとき",
+        "signals": [
+          "equal"
+        ]
+      }
+    ],
+    "id": 6,
+    "chapter": 1
+  },
+  {
+    "text": "近づいた瞬間、まず惹かれるのは？",
+    "choices": [
+      {
+        "label": "耳元の声と、話す間",
+        "signals": [
+          "voice"
+        ]
+      },
+      {
+        "label": "その人らしい香り",
+        "signals": [
+          "scent"
+        ]
+      },
+      {
+        "label": "肌の温もりと、触れ方",
+        "signals": [
+          "touch"
+        ]
+      },
+      {
+        "label": "服装や髪、見た目の細部",
+        "signals": [
+          "style"
+        ]
+      },
+      {
+        "label": "言葉を交わさなくても落ち着く空気",
+        "signals": [
+          "quiet"
+        ]
+      }
+    ],
+    "id": 7,
+    "chapter": 1
+  },
+  {
+    "text": "普段とのギャップ。特に弱いのは？",
+    "choices": [
+      {
+        "label": "自分にだけ見せる、特別な表情",
+        "signals": [
+          "exclusive"
+        ]
+      },
+      {
+        "label": "呼び方や声が、二人だけのものになる",
+        "signals": [
+          "voice",
+          "story"
+        ]
+      },
+      {
+        "label": "きちんとした装いが、少し崩れる",
+        "signals": [
+          "style",
+          "disarray"
+        ]
+      },
+      {
+        "label": "普段は厳しい人が、甘やかしてくれる",
+        "signals": [
+          "receiveCare"
+        ]
+      },
+      {
+        "label": "無理に変わらず、自然体でいてくれる",
+        "signals": [
+          "space"
+        ]
+      }
+    ],
+    "id": 8,
+    "chapter": 1
+  },
+  {
+    "text": "気を張っていた日の夜。いちばん欲しいのは？",
+    "choices": [
+      {
+        "label": "判断を預けて、リードしてもらう時間",
+        "signals": [
+          "yield"
+        ]
+      },
+      {
+        "label": "頑張りを認められ、甘える時間",
+        "signals": [
+          "receiveCare",
+          "praise"
+        ]
+      },
+      {
+        "label": "誰かを甘やかして、安心させる時間",
+        "signals": [
+          "giveCare"
+        ]
+      },
+      {
+        "label": "余裕を崩され、駆け引きを楽しむ時間",
+        "signals": [
+          "masochism"
+        ]
+      },
+      {
+        "label": "一人のペースで、静かに休む時間",
+        "signals": [
+          "space"
+        ]
+      }
+    ],
+    "id": 9,
+    "chapter": 1
+  },
+  {
+    "text": "合意して痛みのある刺激を楽しむことには？",
+    "choices": [
+      {
+        "label": "与える側に興味がある",
+        "signals": [
+          "painGive"
+        ]
+      },
+      {
+        "label": "受ける側に興味がある",
+        "signals": [
+          "painReceive"
+        ]
+      },
+      {
+        "label": "どちらの側にも興味がある",
+        "signals": [
+          "painGive",
+          "painReceive"
+        ]
+      },
+      {
+        "label": "痛みより、優しい触れ合いがいい",
+        "signals": [
+          "touch"
+        ]
+      },
+      {
+        "label": "与えるのも、受けるのも望まない",
+        "signals": [
+          "neutral"
+        ]
+      }
+    ],
+    "id": 10,
+    "chapter": 1
+  },
+  {
+    "text": "親密な時間のあと、どう過ごしたい？",
+    "choices": [
+      {
+        "label": "抱きしめられて、甘やかされたい",
+        "signals": [
+          "receiveCare"
+        ]
+      },
+      {
+        "label": "相手が落ち着くまで、甘やかしたい",
+        "signals": [
+          "giveCare"
+        ]
+      },
+      {
+        "label": "すぐ離れず、余韻に浸っていたい",
+        "signals": [
+          "wet"
+        ]
+      },
+      {
+        "label": "ひと息ついたら、一人の余白も欲しい",
+        "signals": [
+          "space"
+        ]
+      },
+      {
+        "label": "いつもの自然な会話へ戻りたい",
+        "signals": [
+          "quiet"
+        ]
+      }
+    ],
+    "id": 11,
+    "chapter": 1
+  },
+  {
+    "text": "耳元の言葉。特に心が動くのは？",
+    "choices": [
+      {
+        "label": "低い声で「まだ待って」と導かれる",
+        "signals": [
+          "voice",
+          "yield",
+          "restraintReceive"
+        ]
+      },
+      {
+        "label": "自分の一言で、相手の声が揺れる",
+        "signals": [
+          "voice",
+          "sadism"
+        ]
+      },
+      {
+        "label": "見透かしたような声で、からかわれる",
+        "signals": [
+          "voice",
+          "masochism"
+        ]
+      },
+      {
+        "label": "「いいね」と、優しく褒められる",
+        "signals": [
+          "voice",
+          "receiveCare",
+          "praise"
+        ]
+      },
+      {
+        "label": "台詞より、自然な息づかいが好き",
+        "signals": [
+          "quiet"
+        ]
+      }
+    ],
+    "id": 12,
+    "chapter": 2
+  },
+  {
+    "text": "装いや小物で、特に惹かれるのは？",
+    "choices": [
+      {
+        "label": "きちんとした服が、少し着崩れる",
+        "signals": [
+          "style",
+          "disarray"
+        ]
+      },
+      {
+        "label": "制服やスーツなど、役が見える服",
+        "signals": [
+          "style",
+          "story"
+        ]
+      },
+      {
+        "label": "首輪やリボンなど、二人だけの印",
+        "signals": [
+          "style"
+        ]
+      },
+      {
+        "label": "装いより、肌の温もりや触れ合い",
+        "signals": [
+          "touch"
+        ]
+      },
+      {
+        "label": "服や小物には、あまりこだわらない",
+        "signals": [
+          "neutral"
+        ]
+      }
+    ],
+    "id": 13,
+    "chapter": 2
+  },
+  {
+    "text": "あとになっても、思い出していたいのは？",
+    "choices": [
+      {
+        "label": "耳に残った、相手の声",
+        "signals": [
+          "voice"
+        ]
+      },
+      {
+        "label": "近くにいたときの香り",
+        "signals": [
+          "scent"
+        ]
+      },
+      {
+        "label": "抱きしめられた温もり",
+        "signals": [
+          "touch"
+        ]
+      },
+      {
+        "label": "服や髪、表情の細かな記憶",
+        "signals": [
+          "style"
+        ]
+      },
+      {
+        "label": "穏やかに言葉を交わした時間",
+        "signals": [
+          "quiet"
+        ]
+      }
+    ],
+    "id": 14,
+    "chapter": 2
+  },
+  {
+    "text": "合図を待つ・動きを預ける遊びなら？",
+    "choices": [
+      {
+        "label": "自分の合図まで、相手を待たせたい",
+        "signals": [
+          "restraintGive"
+        ]
+      },
+      {
+        "label": "動きを任せて、相手の合図を待ちたい",
+        "signals": [
+          "restraintReceive"
+        ]
+      },
+      {
+        "label": "合図する役と待つ役を、交代したい",
+        "signals": [
+          "switch",
+          "restraintGive",
+          "restraintReceive"
+        ]
+      },
+      {
+        "label": "動きやタイミングは、対等に決めたい",
+        "signals": [
+          "equal"
+        ]
+      },
+      {
+        "label": "そうした遊びには、特に惹かれない",
+        "signals": [
+          "neutral"
+        ]
+      }
+    ],
+    "id": 15,
+    "chapter": 2
+  },
+  {
+    "text": "いつもと違う役を演じるなら？",
+    "choices": [
+      {
+        "label": "自分が命じる、主従の設定",
+        "signals": [
+          "story",
+          "lead"
+        ]
+      },
+      {
+        "label": "相手に仕える、主従の設定",
+        "signals": [
+          "story",
+          "yield"
+        ]
+      },
+      {
+        "label": "途中で主従が逆転する設定",
+        "signals": [
+          "story",
+          "switch"
+        ]
+      },
+      {
+        "label": "二人だけの秘密を持つ設定",
+        "signals": [
+          "story",
+          "exclusive"
+        ]
+      },
+      {
+        "label": "役を演じず、いつもの二人でいたい",
+        "signals": [
+          "equal"
+        ]
+      }
+    ],
+    "id": 16,
+    "chapter": 2
+  },
+  {
+    "text": "相手との駆け引きで、惹かれるのは？",
+    "choices": [
+      {
+        "label": "自分が仕掛けて、相手の余裕を崩す",
+        "signals": [
+          "sadism"
+        ]
+      },
+      {
+        "label": "相手に翻弄され、ペースを乱される",
+        "signals": [
+          "masochism"
+        ]
+      },
+      {
+        "label": "わざと挑発し、最後は逆転される",
+        "signals": [
+          "switch",
+          "masochism",
+          "brat"
+        ]
+      },
+      {
+        "label": "意地悪したあと、自分が甘やかす",
+        "signals": [
+          "sadism",
+          "giveCare"
+        ]
+      },
+      {
+        "label": "駆け引きより、まっすぐ伝え合う",
+        "signals": [
+          "equal"
+        ]
+      }
+    ],
+    "id": 17,
+    "chapter": 2
+  },
+  {
+    "text": "少し挑発したり、されたりするなら？",
+    "choices": [
+      {
+        "label": "強がった自分を、相手に負かされたい",
+        "signals": [
+          "brat",
+          "masochism",
+          "intense"
+        ]
+      },
+      {
+        "label": "挑発的な相手を、自分が負かしたい",
+        "signals": [
+          "sadism",
+          "intense"
+        ]
+      },
+      {
+        "label": "勝つ役も負ける役も、交代で楽しむ",
+        "signals": [
+          "switch"
+        ]
+      },
+      {
+        "label": "競うより、優しく受け止められたい",
+        "signals": [
+          "receiveCare"
+        ]
+      },
+      {
+        "label": "勝ち負けのある展開は望まない",
+        "signals": [
+          "neutral"
+        ]
+      }
+    ],
+    "id": 18,
+    "chapter": 3
+  },
+  {
+    "text": "刺激を強めるなら、気になるのは？",
+    "choices": [
+      {
+        "label": "痛みのある刺激を、与える側",
+        "signals": [
+          "painGive",
+          "intense"
+        ]
+      },
+      {
+        "label": "痛みのある刺激を、受ける側",
+        "signals": [
+          "painReceive",
+          "intense"
+        ]
+      },
+      {
+        "label": "動きや合図を、決める側",
+        "signals": [
+          "restraintGive",
+          "intense"
+        ]
+      },
+      {
+        "label": "動きや合図を、預ける側",
+        "signals": [
+          "restraintReceive",
+          "intense"
+        ]
+      },
+      {
+        "label": "強さより、心地よい触れ合い",
+        "signals": [
+          "touch"
+        ]
+      }
+    ],
+    "id": 19,
+    "chapter": 3
+  },
+  {
+    "text": "深く満たされたと感じるのは？",
+    "choices": [
+      {
+        "label": "特別な相手と、濃くつながれたとき",
+        "signals": [
+          "wet",
+          "exclusive"
+        ]
+      },
+      {
+        "label": "甘えて、受け止めてもらえたとき",
+        "signals": [
+          "receiveCare"
+        ]
+      },
+      {
+        "label": "身を任せ、相手に導いてもらえたとき",
+        "signals": [
+          "yield"
+        ]
+      },
+      {
+        "label": "自分が相手の余裕を崩せたとき",
+        "signals": [
+          "sadism"
+        ]
+      },
+      {
+        "label": "自分から流れを作れたとき",
+        "signals": [
+          "lead"
+        ]
+      }
+    ],
+    "id": 20,
+    "chapter": 3
+  },
+  {
+    "text": "好きな相手でも、避けたいのは？",
+    "choices": [
+      {
+        "label": "痛みを受けること",
+        "signals": [
+          "boundaryPain"
+        ]
+      },
+      {
+        "label": "きつい言葉を向けられること",
+        "signals": [
+          "boundaryWords"
+        ]
+      },
+      {
+        "label": "普段の生活まで束縛されること",
+        "signals": [
+          "boundaryControl"
+        ]
+      },
+      {
+        "label": "役を一方的に決めつけられること",
+        "signals": [
+          "boundaryRole"
+        ]
+      },
+      {
+        "label": "まだ自分でも、決められない",
+        "signals": [
+          "boundaryUnknown"
+        ]
+      }
+    ],
+    "boundary": true,
+    "id": 21,
+    "chapter": 3
+  },
+  {
+    "text": "したい・されたい気持ちが変わるのは？",
+    "choices": [
+      {
+        "label": "相手を信頼できるようになったとき",
+        "signals": [
+          "contextTrust"
+        ]
+      },
+      {
+        "label": "気分や疲れ具合が違うとき",
+        "signals": [
+          "contextMood"
+        ]
+      },
+      {
+        "label": "相手が変わったとき",
+        "signals": [
+          "contextPartner"
+        ]
+      },
+      {
+        "label": "場所や雰囲気が変わったとき",
+        "signals": [
+          "contextScene"
+        ]
+      },
+      {
+        "label": "好みは、あまり変わらない",
+        "signals": [
+          "contextStable"
+        ]
+      }
+    ],
+    "context": true,
+    "id": 22,
+    "chapter": 3
+  },
+  {
+    "text": "夜の終わりに、言われたい一言は？",
+    "choices": [
+      {
+        "label": "「もう頑張らなくていいよ」",
+        "signals": [
+          "receiveCare"
+        ]
+      },
+      {
+        "label": "「あなたに委ねてよかった」",
+        "signals": [
+          "giveCare"
+        ]
+      },
+      {
+        "label": "「これは二人だけの秘密だね」",
+        "signals": [
+          "story",
+          "exclusive"
+        ]
+      },
+      {
+        "label": "「次は交代で、あなたが仕切ってね」",
+        "signals": [
+          "lead",
+          "switch"
+        ]
+      },
+      {
+        "label": "「あとは自分のペースで休もう」",
+        "signals": [
+          "space"
+        ]
+      }
+    ],
+    "id": 23,
+    "chapter": 3
+  }
+];
+export const sceneText=q=>q?.text||'';
+export const choiceLabel=c=>c?.label||'';
+
 export const FACETS=[
   ['lead','主導したい','流れを作る側'],['yield','委ねたい','信頼して任せる側'],['sadism','翻弄したい','相手の余裕を崩す側'],['masochism','翻弄されたい','自分の余裕を奪われる側'],
   ['giveCare','甘やかしたい','相手をいたわる側'],['receiveCare','甘えたい','受け止めてもらう側'],['wet','濃くつながりたい','二人の時間を濃く'],['space','余白もほしい','自分のペースも大切に'],
@@ -156,7 +1005,7 @@ export function diagnose(answers){
   const fit=c=>c.focus.length?c.focus.reduce((n,s)=>n+count(s)/Math.max(1,opportunities(s)),0)/c.focus.length+Math.min(2,c.focus.length-1)*.1:0;
   if(candidates.length)({title,quote,summary,focus}=candidates.sort((a,b)=>fit(b)-fit(a)||Number(b.focus.some(s=>['scent','touch','voice','style','restraintGive','restraintReceive','painGive','painReceive'].includes(s)))-Number(a.focus.some(s=>['scent','touch','voice','style','restraintGive','restraintReceive','painGive','painReceive'].includes(s))))[0]);
   const self=answers[0]===null?null:bits(answers[0])[0];
-  const gap=self===0&&strong('yield')?'リード派のつもりが、任せる時間も欲しかった。':self===1&&strong('lead')?'委ね派のつもりが、主導権も欲しかった。':null;
+  const gap=self===0&&strong('yield')?'仕切るつもりが、手綱を預ける場面も選んでいた。':self===1&&strong('lead')?'任せるつもりが、自分で流れを作る場面も選んでいた。':strong('masochism')&&strong('receiveCare')?'翻弄はされたい。でも、最後は甘やかしてほしい。':count('boundaryPain')>0&&strong('restraintReceive')?'動きは任せたい。でも、痛みまで任せたいわけではない。':null;
   const tags=facets.filter(f=>f.strong).sort((a,b)=>b.count/b.opportunities-a.count/a.opportunities||b.count-a.count).slice(0,3).map(f=>f.label);
   return {instrument:INSTRUMENT,title,quote,summary,gap,facets,tags,focus,evidence:evidenceFor(answers,signals,focus),boundaries:Object.keys(BOUNDARIES).filter(s=>count(s)).map(s=>BOUNDARIES[s]),contexts:Object.keys(CONTEXTS).filter(s=>count(s)).map(s=>CONTEXTS[s]),answered:answers.filter(a=>a!==null).length,signals: Object.fromEntries(Object.entries(signals).map(([s,ids])=>[s,ids.length]))};
 }

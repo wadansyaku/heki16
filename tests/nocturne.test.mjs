@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SCENES,FACETS,emptyAnswers,validAnswers,diagnose,publicCard,listingCard,validCard,compare} from '../src/nocturne.mjs';
+import {SCENES,FACETS,emptyAnswers,validAnswers,diagnose,publicCard,listingCard,validCard,compare,sceneText,choiceLabel} from '../src/nocturne.mjs';
 import {reconcileVault,clearVaults,preserveInstrument} from '../src/vault.mjs';
 import {scenario} from './fixtures/nocturne-scenarios.mjs';
-test('one compact set uses content choices, with no ordinal degree labels',()=>{assert.equal(SCENES.length,24);for(const q of SCENES){assert.equal(q.choices.length,5);assert.ok(q.text.length<=32);for(const c of q.choices){assert.ok(c.label.length<=28);assert.equal(c.degree,undefined);}}for(const f of FACETS)assert.ok(SCENES.filter(q=>q.choices.some(c=>c.signals.includes(f.id))).length>=2,f.id);});
+test('one compact set uses content choices, with no ordinal degree labels',()=>{assert.equal(SCENES.length,24);for(const q of SCENES){assert.equal(q.choices.length,5);assert.ok(q.text.length<=95);for(const c of q.choices){assert.ok(c.label.length<=68);assert.equal(c.degree,undefined);}}for(const f of FACETS)assert.ok(SCENES.filter(q=>q.choices.some(c=>c.signals.includes(f.id))).length>=2,f.id);});
 test('single self-image, at most two desires, and undecided boundaries stay distinct',()=>{const a=emptyAnswers();assert.ok(validAnswers(a));for(const [i,value] of [[0,3],[1,7],[21,17],[3,32]]){const b=[...a];b[i]=value;assert.equal(validAnswers(b),false);}a[1]=17;assert.ok(validAnswers(a));a[21]=16;assert.ok(validAnswers(a));});
 test('unanswered is unknown, and an unselected alternative is not called a dislike',()=>{const p=diagnose(emptyAnswers());assert.ok(p.facets.every(f=>f.level==='まだわからない'));const a=emptyAnswers();a[1]=16;const q=diagnose(a);assert.equal(q.facets.find(f=>f.id==='lead').level,'今回は選ばなかった');assert.ok(q.facets.every(f=>!/苦手|嫌い/.test(f.level)));});
 test('leading and caring for the partner do not manufacture receiving or S/M',()=>{const p=diagnose(scenario(['lead','giveCare']));assert.equal(p.title,'溺愛の飼い主');assert.ok(!/甘やかされ|従いたい|奪われ/.test(p.summary));assert.equal(p.signals.masochism||0,0);assert.equal(p.signals.sadism||0,0);});
-test('leading and being teased coexist, and voice supplies the specific name',()=>{const p=diagnose(scenario(['lead','masochism','voice'],1));assert.equal(p.title,'囁きで落ちる司令塔');assert.match(p.gap,/委ね派のつもり/);assert.ok(p.evidence.length>=2);});
+test('leading and being teased coexist, and voice supplies the specific name',()=>{const p=diagnose(scenario(['lead','masochism','voice'],1));assert.equal(p.title,'囁きで落ちる司令塔');assert.match(p.gap,/任せるつもり/);assert.ok(p.evidence.length>=2);});
 test('S and M are independently selectable without a forced midpoint',()=>{const p=diagnose(scenario(['sadism','masochism']));assert.ok(p.signals.sadism>=2);assert.ok(p.signals.masochism>=2);assert.equal(p.title,'余裕泥棒の、負けず嫌い');});
 test('giving restraint does not manufacture receiving restraint',()=>{const a=emptyAnswers();a[15]=1;a[19]=4;const p=diagnose(a);assert.equal(p.signals.restraintGive,2);assert.equal(p.signals.restraintReceive,undefined);});
 test('one chosen cue cannot decide the whole result',()=>{const a=emptyAnswers();a[12]=1;const p=diagnose(a);assert.ok(!/声に弱い収集家|司令塔/.test(p.title));});
@@ -56,3 +56,15 @@ test('a fresh anonymous trial after expiry archives the previous account instead
   storage['nocturne_1:local']=JSON.stringify({v:1,scope:null,localRecords:[],tags:[{label:'private-before-login'}],note:'private-before-login'});const fresh=reconcileVault(old,null,[],storage);assert.equal(fresh.scope,null);assert.deepEqual(fresh.tags,[]);assert.equal(fresh.draft,null);assert.equal(JSON.parse(storage['nocturne_1:old-account']).note,'keep-private');
 });
 test('a name built from three separate desires retains a witness for every part',()=>{const a=emptyAnswers();for(const [id,value] of [[1,1],[5,1],[4,1],[17,2],[7,1],[14,1]])a[id]=value;const p=diagnose(a);assert.equal(p.title,'囁きで落ちる司令塔');assert.equal(p.evidence.length,3);for(const ids of [[1,5],[4,17],[7,14]])assert.ok(p.evidence.some(e=>ids.includes(e.id)));});
+test('questions describe the same desires without inferring preferences from gender',()=>{
+  for(const q of SCENES){
+    assert.equal(sceneText(q,'woman'),sceneText(q,'man'));
+    for(const c of q.choices)assert.equal(choiceLabel(c,'woman'),choiceLabel(c,'man'));
+  }
+  const lead=scenario(['lead','yield']);lead[0]=1;
+  assert.match(diagnose(lead).gap,/手綱を預ける/);
+  const contrast=scenario(['masochism','receiveCare'],4);
+  assert.match(diagnose(contrast).gap,/最後は甘やかして/);
+  const painless=scenario(['restraintReceive'],4);painless[21]=1;
+  assert.match(diagnose(painless).gap,/痛みまで/);
+});
