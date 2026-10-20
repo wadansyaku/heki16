@@ -2,7 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {adminIdentity} from '../src/admin-auth.mjs';
 import admin,{readAdminReport} from '../src/admin-worker.mjs';
-import {INSTRUMENT,CONSENT,emptyAnswers} from '../src/nocturne.mjs';
+import {INSTRUMENT,CONSENT,PREVIOUS_CONSENT,emptyAnswers,diagnose} from '../src/nocturne.mjs';
+
+import {D1} from './fixtures/d1.mjs';
+import {reportFilters} from '../src/admin-report.mjs';
+import {scenario} from './fixtures/nocturne-scenarios.mjs';
 
 const env={ADMIN_EMAIL:'owner@example.com',ACCESS_AUD:'test-audience',ACCESS_ISSUER:'https://nocturne-test.cloudflareaccess.com'};
 const trusted={access:{aud:env.ACCESS_AUD,getIdentity:async()=>({email:env.ADMIN_EMAIL})}};
@@ -37,12 +41,31 @@ test('header fallback validates signature, issuer, audience, expiry and owner ra
   assert.equal(await check(await token(claims,{alg:'none',kid:jwk.kid})),null);
   const signed=await token();assert.equal(await check(signed.slice(0,-5)+'aaaaa'),null);
 });
-test('live report uses bounded database reads, preserves unknown metrics, and never returns raw rows',async()=>{
-  const now=Date.now(),rows=[{account_id:'private-sentinel',instrument:INSTRUMENT,consent:CONSENT,answers:JSON.stringify(emptyAnswers()),dwell:JSON.stringify(Array(24).fill(0)),visited:1,cursor:0,timeframe:'recent',mood:'soft',age:'20-24',gender:'woman',time_band:'night',created_at:now,last_seen:now,completed_at:null,profile:null}];
-  const database={prepare(sql){assert.match(sql,/LIMIT 2000/);assert.match(sql,/instrument=\?/);return {bind(...params){assert.equal(params[1],INSTRUMENT);return {all:async()=>({results:rows})};}};}};
-  const report=await readAdminReport({DB:database},now);
-  assert.equal(report.people,1);assert.equal(report.landingVisits,null);assert.equal(report.funnel[0].medianMs,null);
-  assert.deepEqual(report.personaCohorts,[]);assert.ok(!JSON.stringify(report).includes('private-sentinel'));
-  assert.equal((await admin.fetch(request('/api/report'),{...env,DB:database,ADMIN_LIMIT:{limit:async()=>({success:false})}},trusted)).status,429);
-  assert.equal((await admin.fetch(new Request(request('/api/report'),{method:'POST'}),env,trusted)).status,405);
+test('owner report uses all retained records, including more than 2,000 and older than seven days',async()=>{
+ const DB=new D1(),now=Date.now(),before=now-10*86400000,answers=scenario(['lead','giveCare']);
+ DB.db.exec('DROP TRIGGER nocturne_record_start');
+ DB.db.exec('BEGIN');
+ const account=DB.db.prepare('INSERT INTO nocturne_accounts(id,created_at,last_seen) VALUES(?,?,?)');account.run('private-sentinel',before,now);account.run('second-person',before,now);account.run('previous-person',before,now);
+ const insert=DB.db.prepare('INSERT INTO nocturne_records(id,account_id,instrument,consent,answers,dwell,visited,cursor,timeframe,mood,age,gender,time_band,created_at,last_seen,completed_at,profile) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+ for(let i=0;i<2101;i++)insert.run('record-'+i,'private-sentinel',INSTRUMENT,CONSENT,JSON.stringify(answers),JSON.stringify(Array(24).fill(i%2?3000:1000)),16777215,23,'recent','soft','20-24','woman','night',before+i,now,now,JSON.stringify(diagnose(answers)));
+ insert.run('incomplete','second-person',INSTRUMENT,CONSENT,JSON.stringify(emptyAnswers()),JSON.stringify(Array(24).fill(0)),1,0,'now','ordinary','30-39','man','night',now-3600000,now-3600000,null,null);
+ insert.run('previous','previous-person',INSTRUMENT,PREVIOUS_CONSENT,JSON.stringify(answers),JSON.stringify(Array(24).fill(1000)),16777215,23,'recent','soft','20-24','woman','night',before,now,now,JSON.stringify(diagnose(answers)));
+ DB.db.exec('COMMIT');
+ const r=await readAdminReport({DB},now);
+ assert.equal(r.started,2102);assert.equal(r.people,2);assert.equal(r.completed,2101);assert.equal(r.possiblyPaused,1);assert.equal(r.sampleLimit,null);
+ assert.equal(r.funnel[0].seen,2102);assert.equal(r.funnel[0].answered,2101);assert.equal(r.funnel[0].medianMs,1000);assert.equal(r.funnel[0].p90Ms,3000);
+ assert.equal(r.personaCohorts.find(c=>c.gender==='woman').people,1);assert.equal(r.personaCohorts.find(c=>c.gender==='woman').facets.lead,1);
+ assert.equal(r.facets.find(f=>f.id==='lead').strong,1);assert.ok(!JSON.stringify(r).includes('private-sentinel'));assert.equal(r.landingVisits,0);
+ const filtered=await readAdminReport({DB},now,new URLSearchParams('gender=man'));assert.equal(filtered.started,1);assert.equal(filtered.funnel[0].medianMs,null);assert.deepEqual(filtered.facets,[]);
+ const seven=await readAdminReport({DB},now,new URLSearchParams('from='+new Date(now-6*86400000).toISOString().slice(0,10)));assert.equal(seven.started,1);
+ for(let i=0;i<5;i++)insert.run('previous-retry-'+i,'previous-person',INSTRUMENT,PREVIOUS_CONSENT,JSON.stringify(answers),JSON.stringify(Array(24).fill(1000)),16777215,23,'recent','soft','20-24','woman','night',before,now,now,JSON.stringify(diagnose(answers)));
+ const previous=await readAdminReport({DB},now,new URLSearchParams('consent=previous&minPeople=1'));assert.equal(previous.started,6);assert.equal(previous.filters.minPeople,5);assert.deepEqual(previous.personaCohorts,[]);assert.deepEqual(previous.titles,[]);assert.equal(previous.facets.find(f=>f.id==='lead').strong,null);assert.ok(previous.funnel.every(q=>q.choices.every(n=>n===null)));assert.ok(previous.funnel.every(q=>!Object.keys(q).some(k=>/^[cp]\d$/.test(k))));assert.equal(previous.funnel[0].medianMs,null);
+ const expired=await readAdminReport({DB},now,new URLSearchParams('from=2020-01-01&to=2020-02-01'));assert.equal(expired.answerPeriodAvailable,false);assert.equal(expired.started,null);assert.equal(expired.landingVisits,null);
+ const guarded={...env,DB,ADMIN_LIMIT:{limit:async()=>({success:true})}};
+ assert.equal((await admin.fetch(request('/api/report?gender=forged'),guarded,trusted)).status,400);
+ assert.equal((await admin.fetch(request('/api/report'),{...guarded,ADMIN_LIMIT:{limit:async()=>({success:false})}},trusted)).status,429);
+ assert.equal((await admin.fetch(new Request(request('/api/report'),{method:'POST'}),guarded,trusted)).status,405);
+});
+test('date and attribute filters are validated before constructing database queries',()=>{
+ for(const query of ['from=2026-02-30','from=2026-11-01&to=2026-10-01','gender=woman%27+OR+1%3D1','age=0','unknown=true','minPeople=0','consent=invalid'])assert.throws(()=>reportFilters(new URLSearchParams(query)));
 });

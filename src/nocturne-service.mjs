@@ -1,7 +1,7 @@
 import {visibleCard} from './presentation.mjs';
 import {diagnose as version2Diagnose,validAnswers as version2ValidAnswers} from './nocturne-v2.mjs';
 import {diagnose as previousDiagnose,validAnswers as previousValidAnswers} from './nocturne-v1.mjs';
-import {INSTRUMENT,PREVIOUS_INSTRUMENT,CONSENT,SCENES,FACETS,MOODS,AGES,GENDERS,validAnswers,emptyAnswers,diagnose,publicCard,listingCard,validCard,compare} from './nocturne.mjs';
+import {INSTRUMENT,PREVIOUS_INSTRUMENT,CONSENT,PREVIOUS_CONSENT,SCENES,FACETS,MOODS,AGES,GENDERS,validAnswers,emptyAnswers,diagnose,publicCard,listingCard,validCard,compare} from './nocturne.mjs';
 const supported=[INSTRUMENT,'nocturne24-2',PREVIOUS_INSTRUMENT];
 const modelFor=instrument=>instrument===PREVIOUS_INSTRUMENT?{diagnose:previousDiagnose,validAnswers:previousValidAnswers}:instrument==='nocturne24-2'?{diagnose:version2Diagnose,validAnswers:version2ValidAnswers}:{diagnose,validAnswers};
 const DAY=86400000,UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,KEY=/^[A-Za-z0-9_-]{43}$/,ID=/^[A-Za-z0-9_-]{16}$/;
@@ -66,7 +66,7 @@ export async function handleNocturne(request,env,verify){
     return reply({signedIn:true},200,{'Set-Cookie':cookie(token,env)});
   }
   if(path==='/api/participate'){
-    if(!keys(b,['id','instrument','consent','adult','context','persona','token'])||!UUID.test(b.id||'')||!supported.includes(b.instrument||PREVIOUS_INSTRUMENT)||b.consent!==CONSENT||b.adult!==true||!validPersona(b.persona)||!validContext(b.context))return reply({error:'invalid_request'},400);
+    if(!keys(b,['id','instrument','consent','adult','context','persona','token'])||!UUID.test(b.id||'')||!supported.includes(b.instrument||PREVIOUS_INSTRUMENT)||![CONSENT,PREVIOUS_CONSENT].includes(b.consent)||b.adult!==true||!validPersona(b.persona)||!validContext(b.context))return reply({error:'invalid_request'},400);
     const instrument=b.instrument||PREVIOUS_INSTRUMENT;
     let token=null,pending=[];
     if(!who){
@@ -81,7 +81,7 @@ export async function handleNocturne(request,env,verify){
     if(existing&&existing.instrument!==instrument)return reply({error:'conflict'},409);
     if(!existing){
       const conflict=await env.DB.prepare('SELECT id FROM nocturne_records WHERE id=?').bind(b.id).first();if(conflict)return reply({error:'conflict'},409);
-      pending.push(env.DB.prepare('INSERT INTO nocturne_records(id,account_id,instrument,consent,answers,dwell,timeframe,mood,age,gender,time_band,created_at,last_seen) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(b.id,who.id,instrument,CONSENT,JSON.stringify(emptyAnswers()),JSON.stringify(Array(24).fill(0)),b.context.timeframe,b.context.mood,b.persona.age,b.persona.gender,b.context.timeBand,now,now));
+      pending.push(env.DB.prepare('INSERT INTO nocturne_records(id,account_id,instrument,consent,answers,dwell,timeframe,mood,age,gender,time_band,created_at,last_seen) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(b.id,who.id,instrument,b.consent,JSON.stringify(emptyAnswers()),JSON.stringify(Array(24).fill(0)),b.context.timeframe,b.context.mood,b.persona.age,b.persona.gender,b.context.timeBand,now,now));
       await env.DB.batch(pending);
     }
     return reply({accepted:true,id:b.id,scope:who.id},201,token?{'Set-Cookie':cookie(token,env)}:{});

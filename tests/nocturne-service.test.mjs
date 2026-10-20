@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
 import {handleNocturne,serveShortShare,maintainNocturne,aggregateUsage} from '../src/nocturne-service.mjs';
-import {SCENES,CONSENT,INSTRUMENT,diagnose,emptyAnswers} from '../src/nocturne.mjs';
+import {SCENES,CONSENT,PREVIOUS_CONSENT,INSTRUMENT,diagnose,emptyAnswers} from '../src/nocturne.mjs';
 import {diagnose as previousDiagnose} from '../src/nocturne-v1.mjs';
 class DB{
  constructor(){this.db=new DatabaseSync(':memory:');this.db.exec(fs.readFileSync('migrations/0005_nocturne.sql','utf8'));this.db.exec(fs.readFileSync('migrations/0006_nocturne_moderation.sql','utf8'));}
@@ -76,4 +76,8 @@ test('the previous 24-scene model completes with its own wording and logic after
   assert.equal(done.status,200);assert.deepEqual((await done.json()).profile,old.diagnose(a));
   const account=await(await call(e,'/api/account',undefined,cookie)).json();
   assert.equal(account.records[0].instrument,'nocturne24-2');assert.deepEqual(account.records[0].profile,old.diagnose(a));
+});
+
+test('older active clients keep their original consent rather than being silently upgraded',async()=>{
+ const e=environment(),b={...startBody(),consent:PREVIOUS_CONSENT},r=await call(e,'/api/participate',b);assert.equal(r.status,201);assert.equal(await e.DB.prepare('SELECT consent FROM nocturne_records WHERE id=?').bind(b.id).first('consent'),PREVIOUS_CONSENT);
 });

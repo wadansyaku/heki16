@@ -1,5 +1,6 @@
 import {INSTRUMENT,CONSENT,validAnswers,DIMENSIONS,QUESTIONS} from './diagnosis.mjs';
 import {handleNocturne,serveShortShare,maintainNocturne} from './nocturne-service.mjs';
+import {handleMetrics,maintainMetrics} from './metrics-service.mjs';
 const json=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'"}});
 const digest=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -142,6 +143,6 @@ export async function runMaintenance(env,now=Date.now()){
   }
 }
 export default {
-  async fetch(request,env){try{const path=new URL(request.url).pathname;if(path.startsWith('/s/'))return await serveShortShare(request,env);if(path.startsWith('/api/'))return await handleNocturne(request,env,verifyTurnstile)||await handleApi(request,env);return await env.ASSETS.fetch(request);}catch(e){return json({error:String(e).includes('nocturne_capacity')?'wait':'unavailable'},String(e).includes('nocturne_capacity')?429:503);}},
-  async scheduled(event,env,ctx){ctx.waitUntil(Promise.all([runMaintenance(env),maintainNocturne(env)]));}
+  async fetch(request,env){try{const path=new URL(request.url).pathname;if(path==='/api/metrics')return await handleMetrics(request,env);if(path.startsWith('/s/'))return await serveShortShare(request,env);if(path.startsWith('/api/'))return await handleNocturne(request,env,verifyTurnstile)||await handleApi(request,env);return await env.ASSETS.fetch(request);}catch(e){return json({error:String(e).includes('nocturne_capacity')?'wait':'unavailable'},String(e).includes('nocturne_capacity')?429:503);}},
+  async scheduled(event,env,ctx){ctx.waitUntil(Promise.all([runMaintenance(env),maintainNocturne(env),maintainMetrics(env)]));}
 };

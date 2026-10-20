@@ -55,6 +55,14 @@
         "limit": 120,
         "period": 60
       }
+    },
+    {
+      "name": "METRIC_LIMIT",
+      "namespace_id": "164651813",
+      "simple": {
+        "limit": 30,
+        "period": 60
+      }
     }
   ],
   "triggers": {

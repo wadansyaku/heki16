@@ -1,7 +1,8 @@
 // Selected content is evidence; choice order, gender and mood never add strength.
 export const INSTRUMENT='nocturne24-3';
 export const PREVIOUS_INSTRUMENT='nocturne24-1';
-export const CONSENT='nocturne-2026-10-19';
+export const CONSENT='nocturne-2026-10-21';
+export const PREVIOUS_CONSENT='nocturne-2026-10-19';
 export const CHAPTERS=['二人の距離と主導権','近づき方と余韻','刺激と駆け引き','好きの核と境界線'];
 export const SCENES=[
   {
@@ -147,7 +148,7 @@ export const SCENES=[
     "chapter": 0
   },
   {
-    "text": "自分が余裕をなくしたとき、どうされたい？",
+    "text": "自分が余裕をなくした。その先は？",
     "choices": [
       {
         "label": "逃げ道を残しつつ、もっと焦らされたい",
@@ -377,7 +378,7 @@ export const SCENES=[
     "chapter": 1
   },
   {
-    "text": "合意の上で、痛みのある刺激を楽しむなら？",
+    "text": "合意の上での、痛みのある刺激には？",
     "choices": [
       {
         "label": "与える側に興味がある",
@@ -549,7 +550,7 @@ export const SCENES=[
         ]
       },
       {
-        "label": "抱きしめられた温もり",
+        "label": "触れ合った肌の温もり",
         "signals": [
           "touch"
         ]
@@ -571,7 +572,7 @@ export const SCENES=[
     "chapter": 2
   },
   {
-    "text": "合図を待つ・動きを預ける遊びなら？",
+    "text": "合図や自由を預け合う遊びには？",
     "choices": [
       {
         "label": "自分の合図まで、相手を待たせたい",
@@ -986,7 +987,7 @@ export function diagnose(answers){
   if(strong('style')&&strong('disarray'))choose('着崩れの観察者','整っているから、少しの乱れに弱い。','きちんとした装いが少しずつ崩れていく瞬間に目を奪われます。整った姿に隙が生まれる変化の過程に惹かれる好みです。',['style','disarray']);
   if(strong('style'))choose('装いの観察者','服と仕草、その細部に目が止まる。','服の質感やシルエット、二人だけの小物や仕草の細部に惹かれています。目に残る装いや視覚の記憶を大切にする好みです。',['style']);
   if(strong('exclusive'))choose('特別を集める独占派','私にだけ、見せてほしい。','他の誰にも見せない無防備な顔や、二人だけの秘密に惹かれています。自分だけが知っている特別さを確かめ合いたい好みです。',['exclusive']);
-  if(strong('story'))choose('二人の世界の演出家','いつもの二人に、秘密の設定を。','主従などの役回りや二人だけの呼び名・合言葉に惹かれています。日常とは違う設定をまとうことで熱が高まる好みです。',['story']);
+  if(strong('story'))choose('二人の世界の演出家','いつもの二人に、秘密の設定を。','二人だけの呼び名や合言葉、いつもと違う役回りに惹かれています。秘密の設定を共有することで熱が高まる好みです。',['story']);
   if(strong('restraintGive')&&strong('restraintReceive'))choose('手綱を替える遊戯者','預ける楽しさも、預かる楽しさも。','合図を出して待たせる側と、自由を預けて待つ側の両方を選んでいます。場面によって制限する役を交代して楽しみたい好みです。',['restraintGive','restraintReceive']);
   if(strong('restraintGive'))choose('手綱を握る主導者','二人で決めた自由を、私が預かる。','自分の合図まで相手を待たせたり、自由を預かったりする展開を選んでいます。合意の上で動きを制限する役に惹かれる好みです。',['restraintGive']);
   if(strong('restraintReceive'))choose('自由を預ける没入者','任せる範囲は、私が選ぶ。','動きを相手に任せて、合図を待つ展開を選んでいます。合意して自由を預けることで、相手との時間に深く没入したい好みです。',['restraintReceive']);
