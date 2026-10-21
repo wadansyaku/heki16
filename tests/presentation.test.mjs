@@ -32,12 +32,21 @@ test('old links move without losing share IDs, while recovery remains on the ori
   assert.equal(migrationResponse(new Request('https://heki16-pro.aiyume.workers.dev/app.mjs'),destination),null);
 });
 
-test('basic questions require an explicit valid choice, including an intentional non-answer',async()=>{
+test('basic questions require explicit profile choices and reject non-answers',async()=>{
   const {firstMissingChoice}=await import('../src/presentation.mjs');
-  const {MOODS,AGES,GENDERS}=await import('../src/nocturne.mjs');
-  const opts={mood:MOODS,age:AGES,gender:GENDERS};
+  const {PROFILE_OPTIONS}=await import('../src/nocturne.mjs');
+  const opts=PROFILE_OPTIONS;
   assert.equal(firstMissingChoice({mood:'',age:'',gender:''},opts),'mood');
   assert.equal(firstMissingChoice({mood:'ordinary',age:'',gender:'man'},opts),'age');
   assert.equal(firstMissingChoice({mood:'ordinary',age:'20-24',gender:'forged'},opts),'gender');
-  assert.equal(firstMissingChoice({mood:'unset',age:'unset',gender:'unset'},opts),undefined);
+  assert.equal(firstMissingChoice({mood:'unset',age:'unset',gender:'unset'},opts),'mood');
+  assert.equal(firstMissingChoice({mood:'ordinary',age:'55-59',gender:'diverse'},opts),undefined);
+  assert.deepEqual(Object.keys(opts.age),['18-19','20-24','25-29','30-34','35-39','40-44','45-49','50-54','55-59','60+']);
+});
+
+test('launch reset clears only trial app namespaces once, preserving later real answers',async()=>{
+ const {resetTrialData}=await import('../src/vault.mjs');
+ const storage={nocturne_1:'old',nocturne_pr_consent:'old',heki16_old:'old',other_app:'keep',getItem(k){return this[k]??null},setItem(k,v){this[k]=v},removeItem(k){delete this[k]}};
+ assert.equal(resetTrialData(storage,'launch-20261021'),true);assert.equal(storage.other_app,'keep');assert.equal(storage.nocturne_1,undefined);assert.equal(storage.heki16_old,undefined);
+ storage.nocturne_1='new answers';assert.equal(resetTrialData(storage,'launch-20261021'),false);assert.equal(storage.nocturne_1,'new answers');
 });

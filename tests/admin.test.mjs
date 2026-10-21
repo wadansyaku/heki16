@@ -9,6 +9,18 @@ import {reportFilters} from '../src/admin-report.mjs';
 import {scenario} from './fixtures/nocturne-scenarios.mjs';
 
 const env={ADMIN_EMAIL:'owner@example.com',ACCESS_AUD:'test-audience',ACCESS_ISSUER:'https://nocturne-test.cloudflareaccess.com'};
+test('two completed diagnoses by the same account count as one person and two responses',async()=>{
+ const DB=new D1(),now=Date.now(),answers=scenario(['lead','giveCare']),profile=JSON.stringify(diagnose(answers));
+ DB.db.prepare('INSERT INTO nocturne_accounts(id,created_at,last_seen) VALUES(?,?,?)').run('repeat-owner',now,now);
+ const insert=DB.db.prepare('INSERT INTO nocturne_records(id,account_id,instrument,consent,answers,dwell,visited,cursor,timeframe,mood,age,gender,time_band,created_at,last_seen,completed_at,profile) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+ for(let i=0;i<2;i++)insert.run('repeat-'+i,'repeat-owner',INSTRUMENT,CONSENT,JSON.stringify(answers),JSON.stringify(Array(24).fill(1000)),16777215,23,'recent','ordinary','35-39','man','night',now-2+i,now,now,profile);
+ const r=await readAdminReport({DB},now);
+ assert.equal(r.people,1);assert.equal(r.started,2);assert.equal(r.completed,2);
+ assert.equal(r.personaCohorts[0].people,1);assert.equal(r.personaCohorts[0].sessions,2);
+ assert.equal(r.timeCohorts[0].people,1);assert.equal(r.daily[0].people,1);
+ assert.equal(r.titles[0].people,1);assert.equal(r.titles[0].records,2);
+ assert.equal(r.facets.find(f=>f.id==='lead').people,1);
+});
 const trusted={access:{aud:env.ACCESS_AUD,getIdentity:async()=>({email:env.ADMIN_EMAIL})}};
 const request=path=>new Request('https://nocturne-admin.example'+path);
 test('dashboard and assets fail closed before any database access, including spoofed identity headers',async()=>{
@@ -48,7 +60,7 @@ test('owner report uses all retained records, including more than 2,000 and olde
  const account=DB.db.prepare('INSERT INTO nocturne_accounts(id,created_at,last_seen) VALUES(?,?,?)');account.run('private-sentinel',before,now);account.run('second-person',before,now);account.run('previous-person',before,now);
  const insert=DB.db.prepare('INSERT INTO nocturne_records(id,account_id,instrument,consent,answers,dwell,visited,cursor,timeframe,mood,age,gender,time_band,created_at,last_seen,completed_at,profile) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
  for(let i=0;i<2101;i++)insert.run('record-'+i,'private-sentinel',INSTRUMENT,CONSENT,JSON.stringify(answers),JSON.stringify(Array(24).fill(i%2?3000:1000)),16777215,23,'recent','soft','20-24','woman','night',before+i,now,now,JSON.stringify(diagnose(answers)));
- insert.run('incomplete','second-person',INSTRUMENT,CONSENT,JSON.stringify(emptyAnswers()),JSON.stringify(Array(24).fill(0)),1,0,'now','ordinary','30-39','man','night',now-3600000,now-3600000,null,null);
+ insert.run('incomplete','second-person',INSTRUMENT,CONSENT,JSON.stringify(emptyAnswers()),JSON.stringify(Array(24).fill(0)),1,0,'now','ordinary','30-34','man','night',now-3600000,now-3600000,null,null);
  insert.run('previous','previous-person',INSTRUMENT,PREVIOUS_CONSENT,JSON.stringify(answers),JSON.stringify(Array(24).fill(1000)),16777215,23,'recent','soft','20-24','woman','night',before,now,now,JSON.stringify(diagnose(answers)));
  DB.db.exec('COMMIT');
  const r=await readAdminReport({DB},now);
