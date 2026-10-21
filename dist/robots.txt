@@ -3,4 +3,4 @@ Allow: /
 Disallow: /api/
 Disallow: /legacy/
 Disallow: /s/
-Sitemap: https://nocturne.aiyume.workers.dev/sitemap.xml
+Sitemap: https://nocturne.ai-yu-me.com/sitemap.xml

@@ -1,10 +1,10 @@
 # NOCTURNE
 
-公開先: https://nocturne.aiyume.workers.dev/
+公開先: https://nocturne.ai-yu-me.com/
 
 ソースコード: https://github.com/wadansyaku/heki16
 
-サイト25.1.0 / 質問票 `nocturne24-3`。
+サイト25.1.1 / 質問票 `nocturne24-3`。
 
 ## 体験と設計
 
@@ -116,7 +116,7 @@ Turnstileの成功・hostname・action、Originと専用ヘッダー、本人の
 
 ## 公開先の移転
 
-公開先は `https://nocturne.aiyume.workers.dev/` です。以前の `heki16-pro` は `wrangler.move.jsonc` と `src/move-worker.mjs` で移転先へ案内し、定期集計は新しいWorkerだけが実行します。D1/R2は移転前と同じ保存先を使います。
+公開先は `https://nocturne.ai-yu-me.com/` です。以前の `heki16-pro` は `wrangler.move.jsonc` と `src/move-worker.mjs` で移転先へ案内し、定期集計は新しいWorkerだけが実行します。D1/R2は移転前と同じ保存先を使います。
 
 以前の共有リンクは識別子を保って新しいサイトへ案内します。ログインCookieと端末だけの記録はホストをまたいで読めないため、`https://heki16-pro.aiyume.workers.dev/?records=1` で引き継ぎキーの発行と以前の結果の閲覧を続けられます。公開UIには移転案内を表示しません。キーや回答をURLに埋め込みません。旧サイトの受付を止めるときも、撤回と引き継ぎの経路は残してください。
 

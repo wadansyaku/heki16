@@ -21,9 +21,10 @@
     "cpu_ms": 250
   },
   "vars": {
-    "SITE_ORIGIN": "https://nocturne.aiyume.workers.dev",
+    "SITE_ORIGIN": "https://nocturne.ai-yu-me.com",
     "RESEARCH_ENABLED": "true",
-    "RECOVERY_MODE": "off"
+    "RECOVERY_MODE": "off",
+    "LEGACY_SITE_ORIGIN": "https://nocturne.aiyume.workers.dev"
   },
   "d1_databases": [
     {
@@ -69,5 +70,11 @@
     "crons": [
       "*/15 * * * *"
     ]
-  }
+  },
+  "routes": [
+    {
+      "pattern": "nocturne.ai-yu-me.com",
+      "custom_domain": true
+    }
+  ]
 }

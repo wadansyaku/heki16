@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const {validateMonetization, renderAffiliateSection} = require('../scripts/monetization.cjs');
 const now = Date.parse('2026-10-18T00:00:00Z');
 const campaign = {id:'test-link',title:'A < B',description:'A & B',merchant:'Test "Merchant"',url:'https://example.org/product?ref=test',placements:['post-share'],expiresAt:'2027-10-18T00:00:00Z',reviewedAt:'2026-10-17T00:00:00Z',creativeApproved:true,linkVerified:true,affinities:['lead']};
-const config = {provider:'myfans',enabled:true,siteApproved:true,mediaUrl:'https://nocturne.aiyume.workers.dev/',personalizationEnabled:false,allowedHosts:['example.org'],campaigns:[campaign]};
+const config = {provider:'myfans',enabled:true,siteApproved:true,mediaUrl:'https://nocturne.ai-yu-me.com/',personalizationEnabled:false,allowedHosts:['example.org'],campaigns:[campaign]};
 let passed = 0;
 function test(name, fn) {fn();passed++;console.log('PASS '+name);}
 test('Disabled monetization shows no ads or placeholder claims',()=>{

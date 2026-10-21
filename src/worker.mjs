@@ -143,6 +143,11 @@ export async function runMaintenance(env,now=Date.now()){
   }
 }
 export default {
-  async fetch(request,env){try{const path=new URL(request.url).pathname;if(path==='/api/metrics')return await handleMetrics(request,env);if(path.startsWith('/s/'))return await serveShortShare(request,env);if(path.startsWith('/api/'))return await handleNocturne(request,env,verifyTurnstile)||await handleApi(request,env);return await env.ASSETS.fetch(request);}catch(e){return json({error:String(e).includes('nocturne_capacity')?'wait':'unavailable'},String(e).includes('nocturne_capacity')?429:503);}},
+  async fetch(request,env){try{
+    const url=new URL(request.url),path=url.pathname;
+    // Keep existing host-only sessions usable without allowing cross-origin requests.
+    if(env.LEGACY_SITE_ORIGIN&&url.origin===env.LEGACY_SITE_ORIGIN)env={...env,PUBLIC_SITE_ORIGIN:env.SITE_ORIGIN,SITE_ORIGIN:env.LEGACY_SITE_ORIGIN};
+    if(path==='/api/metrics')return await handleMetrics(request,env);if(path.startsWith('/s/'))return await serveShortShare(request,env);if(path.startsWith('/api/'))return await handleNocturne(request,env,verifyTurnstile)||await handleApi(request,env);return await env.ASSETS.fetch(request);
+  }catch(e){return json({error:String(e).includes('nocturne_capacity')?'wait':'unavailable'},String(e).includes('nocturne_capacity')?429:503);}},
   async scheduled(event,env,ctx){ctx.waitUntil(Promise.all([runMaintenance(env),maintainNocturne(env),maintainMetrics(env)]));}
 };

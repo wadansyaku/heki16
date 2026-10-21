@@ -8,7 +8,7 @@ function validateMonetization(config, now = Date.now(), knownAffinities = null) 
   assert.ok(Array.isArray(config.allowedHosts) && Array.isArray(config.campaigns));
   if (!config.enabled) return [];
   assert.equal(config.provider, 'myfans');
-  assert.equal(config.mediaUrl, 'https://nocturne.aiyume.workers.dev/');
+  assert.equal(config.mediaUrl, 'https://nocturne.ai-yu-me.com/');
   assert.equal(typeof config.personalizationEnabled, 'boolean');
   assert.equal(config.siteApproved, true, 'Confirm this site is approved by the advertising partner before activation');
   assert.ok(config.campaigns.length > 0 && config.campaigns.length <= 6);
