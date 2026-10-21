@@ -1,4 +1,4 @@
-export const METRIC_EVENTS=['visit','share_visit','listing_gate','start_open','quiz_start','quiz_complete','share_open','share_link','x_open','listing_open','listing_publish','interest'];
+export const METRIC_EVENTS=['visit','share_visit','listing_gate','start_open','quiz_start','quiz_complete','share_open','share_link','x_open','listing_open','listing_publish','interest','pr_open','pr_click'];
 const devices=['mobile','desktop'],sources=['direct','search','social','other'];
 const reply=(body,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'"}});
 export async function handleMetrics(request,env,now=Date.now()){
