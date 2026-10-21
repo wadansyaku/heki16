@@ -32,6 +32,10 @@ dialog{width:min(560px,calc(100vw - 20px));max-height:calc(100dvh - 20px);paddin
 .personal-preview{border-left:2px solid var(--brass);padding:8px 12px;white-space:pre-wrap}.personal-preview[hidden]{display:none}
 .publication-preview blockquote{font-size:14px;line-height:1.7;margin:0;color:var(--brass)}
 /* Readable controls and zero-scroll 100dvh layout for deep scenes and sub-cards. */
+.persona-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.persona-grid>*{min-width:0}
+.polarity-badges{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.polarity-badges span{font-size:11px;color:#ead4b5;background:#19121a;border:1px solid #c5a88038;padding:3px 7px;border-radius:3px}
+.facet-bar-grid{grid-template-columns:1fr 1fr}
+.censor-bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px}.censor-bar .btn{min-height:28px;padding:3px 8px;font-size:11px}
 .pill-row.cols-3{grid-template-columns:repeat(3,1fr)}
 .pill-row.cols-4{grid-template-columns:repeat(4,1fr)}
 .sub-tabs{display:flex;gap:5px;margin-bottom:10px;flex:none}.sub-tabs button{flex:1;min-width:0;min-height:32px;padding:4px 6px;font-size:11px;line-height:1.25;border:1px solid #c5a88038;background:#100e15;color:var(--muted);border-radius:3px;transition:border-color .15s,background .15s,color .15s}.sub-tabs button.active{border-color:var(--bright);background:#261018;color:#fff6ec;box-shadow:inset 0 -2px var(--bright)}

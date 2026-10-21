@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SCENES,FACETS,emptyAnswers,validAnswers,diagnose,publicCard,listingCard,validCard,compare,sceneText,choiceLabel} from '../src/nocturne.mjs';
+import {SCENES,FACETS,BOUNDARIES,emptyAnswers,validAnswers,diagnose,publicCard,listingCard,validCard,compare,sceneText,choiceLabel,fallbackDossierFromCard} from '../src/nocturne.mjs';
 import {reconcileVault,clearVaults,preserveInstrument} from '../src/vault.mjs';
 import {scenario} from './fixtures/nocturne-scenarios.mjs';
 test('one compact set uses content choices, with no ordinal degree labels',()=>{assert.equal(SCENES.length,24);for(const q of SCENES){assert.equal(q.choices.length,5);assert.ok(q.text.length<=95);for(const c of q.choices){assert.ok(c.label.length<=68);assert.equal(c.degree,undefined);}}for(const f of FACETS)assert.ok(SCENES.filter(q=>q.choices.some(c=>c.signals.includes(f.id))).length>=2,f.id);});
@@ -72,4 +72,22 @@ test('questions support perspective phrasing without inferring preferences from 
   assert.match(diagnose(contrast).gap,/飴と鞭の落差/);
   const deepYield=scenario(['restraintReceive'],4);deepYield[0]=1;
   assert.match(diagnose(deepYield).gap,/裏スイッチ/);
+});
+test('dossier synthesis and fallbackDossierFromCard provide 4-step manual and boundary conflict detection',()=>{
+  const p=diagnose(scenario(['lead','masochism','voice'],1));
+  assert.ok(p.dossier.maskVsDeep);
+  assert.ok(p.dossier.motiveAndAfterglow);
+  assert.ok(p.dossier.sensoryNarrative);
+  assert.equal(p.dossier.manual.length,4);
+  const card=publicCard(p);
+  assert.equal(card.dossier,undefined);
+  const fb=fallbackDossierFromCard(card);
+  assert.ok(fb.maskVsDeep);
+  assert.ok(fb.motiveAndAfterglow);
+  assert.ok(fb.sensoryNarrative);
+  assert.equal(fb.manual.length,4);
+  const painGiver={traits:['painGive'],boundaries:[]};
+  const painAverse={traits:['yield'],boundaries:[BOUNDARIES.boundaryPain]};
+  const lines=compare(painGiver,painAverse);
+  assert.ok(lines.some(l=>l.title==='境界線の事前確認（痛み）'));
 });
