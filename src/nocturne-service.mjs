@@ -1,7 +1,7 @@
-import {visibleCard} from './presentation.mjs';
+import {visibleCard,firstMissingChoice} from './presentation.mjs';
 import {diagnose as version2Diagnose,validAnswers as version2ValidAnswers} from './nocturne-v2.mjs';
 import {diagnose as previousDiagnose,validAnswers as previousValidAnswers} from './nocturne-v1.mjs';
-import {INSTRUMENT,PREVIOUS_INSTRUMENT,CONSENT,PREVIOUS_CONSENT,SCENES,FACETS,MOODS,AGES,GENDERS,validAnswers,emptyAnswers,diagnose,publicCard,listingCard,validCard,compare} from './nocturne.mjs';
+import {INSTRUMENT,PREVIOUS_INSTRUMENT,CONSENT,PREVIOUS_CONSENT,SCENES,FACETS,MOODS,AGES,GENDERS,PROFILE_OPTIONS,validAnswers,emptyAnswers,diagnose,publicCard,listingCard,validCard,compare} from './nocturne.mjs';
 const supported=[INSTRUMENT,'nocturne24-2',PREVIOUS_INSTRUMENT];
 const modelFor=instrument=>instrument===PREVIOUS_INSTRUMENT?{diagnose:previousDiagnose,validAnswers:previousValidAnswers}:instrument==='nocturne24-2'?{diagnose:version2Diagnose,validAnswers:version2ValidAnswers}:{diagnose,validAnswers};
 const DAY=86400000,UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,KEY=/^[A-Za-z0-9_-]{43}$/,ID=/^[A-Za-z0-9_-]{16}$/;
@@ -66,7 +66,7 @@ export async function handleNocturne(request,env,verify){
     return reply({signedIn:true},200,{'Set-Cookie':cookie(token,env)});
   }
   if(path==='/api/participate'){
-    if(!keys(b,['id','instrument','consent','adult','context','persona','token'])||!UUID.test(b.id||'')||!supported.includes(b.instrument||PREVIOUS_INSTRUMENT)||![CONSENT,PREVIOUS_CONSENT].includes(b.consent)||b.adult!==true||!validPersona(b.persona)||!validContext(b.context))return reply({error:'invalid_request'},400);
+    if(!keys(b,['id','instrument','consent','adult','context','persona','token'])||!UUID.test(b.id||'')||!supported.includes(b.instrument||PREVIOUS_INSTRUMENT)||![CONSENT,PREVIOUS_CONSENT].includes(b.consent)||b.adult!==true||!validPersona(b.persona)||!validContext(b.context)||firstMissingChoice({age:b.persona?.age,gender:b.persona?.gender,mood:b.context?.mood},PROFILE_OPTIONS))return reply({error:'invalid_request'},400);
     const instrument=b.instrument||PREVIOUS_INSTRUMENT;
     let token=null,pending=[];
     if(!who){
@@ -118,7 +118,7 @@ export async function handleNocturne(request,env,verify){
     return reply({saved:true,...(profile?{profile}:{})});
   }
   if(path==='/api/persona'){
-    if(!keys(b,['id','persona'])||!validPersona(b.persona))return reply({error:'invalid_request'},400);
+    if(!keys(b,['id','persona'])||!validPersona(b.persona)||!Object.hasOwn(PROFILE_OPTIONS.age,b.persona.age)||!Object.hasOwn(PROFILE_OPTIONS.gender,b.persona.gender))return reply({error:'invalid_request'},400);
     const own=await record(env,b.id,who.id);if(!own)return reply({error:'not_found'},404);
     await env.DB.prepare('UPDATE nocturne_records SET age=?,gender=? WHERE id=? AND account_id=?').bind(b.persona.age,b.persona.gender,b.id,who.id).run();await invalidate(env);return reply({saved:true});
   }

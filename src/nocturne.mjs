@@ -227,8 +227,9 @@ export const FACETS=[
 ].map(([id,label,detail])=>({id,label,detail}));
 
 export const MOODS={ordinary:'いつもどおり',soft:'甘えたい気分',playful:'駆け引きを楽しみたい',calm:'ゆっくり過ごしたい',unset:'決めずに答える'};
-export const AGES={'18-19':'18〜19歳','20-24':'20代前半','25-29':'20代後半','30-39':'30代','40-49':'40代','50+':'50代以上',unset:'答えない'};
+export const AGES={'18-19':'18〜19歳','20-24':'20〜24歳','25-29':'25〜29歳','30-34':'30〜34歳','35-39':'35〜39歳','40-44':'40〜44歳','45-49':'45〜49歳','50-54':'50〜54歳','55-59':'55〜59歳','60+':'60歳以上',unset:'答えない'};
 export const GENDERS={woman:'女性',man:'男性',diverse:'その他・どちらでもない',unset:'答えない'};
+export const PROFILE_OPTIONS=Object.fromEntries(Object.entries({mood:MOODS,age:AGES,gender:GENDERS}).map(([key,options])=>[key,Object.fromEntries(Object.entries(options).filter(([value])=>value!=='unset'))]));
 export const BOUNDARIES={boundaryPain:'痛みは受けたくない',boundaryWords:'きつい言葉は苦手',boundaryControl:'生活までの束縛は望まない',boundaryRole:'役を決めつけないで'};
 export const CONTEXTS={contextTrust:'信頼で変わる',contextMood:'気分や疲れ具合で変わる',contextPartner:'相手によって変わる',contextScene:'場面によって変わる',contextStable:'好みは比較的変わらない'};
 

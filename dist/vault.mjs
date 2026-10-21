@@ -1,4 +1,10 @@
 const PREFIX='nocturne_1:';
+// One-time removal of owner-only trial data before the public launch.
+export function resetTrialData(storage,epoch){
+ if(storage.getItem('nocturne_data_epoch')===epoch)return false;
+ for(const key of Object.keys(storage))if(key.startsWith('nocturne_')||key.startsWith('heki16_'))storage.removeItem(key);
+ storage.setItem('nocturne_data_epoch',epoch);return true;
+}
 const fresh=scope=>({v:1,scope,draft:null,localRecords:[],tags:[],note:''});
 export function reconcileVault(current,scope,ownedIds,storage){
   if(current.scope===scope)return current;

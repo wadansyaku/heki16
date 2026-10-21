@@ -1,18 +1,18 @@
 import {promotionEntry,openPromotion,forgetPromotionConsent} from './affiliate-client.mjs';
 import {measure} from './metrics.mjs';
-import {INSTRUMENT,CONSENT,PREVIOUS_CONSENT,SCENES,CHAPTERS,FACETS,MOODS,AGES,GENDERS,emptyAnswers,bits,diagnose,publicCard,listingCard,compare,validAnswers,sceneText,choiceLabel} from './nocturne.mjs';
+import {INSTRUMENT,CONSENT,PREVIOUS_CONSENT,SCENES,CHAPTERS,FACETS,MOODS,AGES,GENDERS,PROFILE_OPTIONS,emptyAnswers,bits,diagnose,publicCard,listingCard,compare,validAnswers,sceneText,choiceLabel} from './nocturne.mjs';
 import {visibleCard,facetRate,historyComparison,firstMissingChoice} from './presentation.mjs';
 import {readResultLink} from './diagnosis.mjs';
 import {organizeTags,normalizeLabel} from './tags.mjs';
 import {phrases} from './phrasing.mjs';
-import {reconcileVault,clearVaults,preserveInstrument} from './vault.mjs';
+import {reconcileVault,clearVaults,preserveInstrument,resetTrialData} from './vault.mjs';
 const SITEKEY='0x4AAAAAAFaMaq3Xy2r-CpoC',KEY='nocturne_1',$=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const text=s=>phrases(s).map(p=>`<span class="phrase">${esc(p)}</span>`).join('');
 const icon=name=>`<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${({arrow:'<path d="M5 12h14m-6-6 6 6-6 6"/>',back:'<path d="M19 12H5m6-6-6 6 6 6"/>',check:'<path d="m5 12 4 4L19 6"/>',close:'<path d="m6 6 12 12M6 18 18 6"/>',key:'<circle cx="8" cy="9" r="4"/><path d="m11 12 8 8 2-2-2-2 1-1-2-2-1 1"/>',more:'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',menu:'<path d="M4 6h16M4 12h16M4 18h16"/>'})[name]||''}</svg>`;
 const btn=(label,action,style='',attrs='')=>`<button type="button" class="btn ${style}" data-action="${action}" ${attrs}>${label}</button>`;
 const select=(id,options,value)=>`<select id="${id}"${value===''?' required':''}>${value===''?'<option value="" selected disabled>選んでください</option>':''}${Object.entries(options).map(([v,l])=>`<option value="${v}" ${v===value?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
-function load(){try{const saved=JSON.parse(localStorage.getItem(KEY)||'null');if(saved?.v===1&&(!saved.draft||validAnswers(saved.draft.answers)))return saved;}catch{}let tags=[];for(const key of ['heki16_unified40_v3','heki16_unified40_v2','heki16_unified40_v1']){try{const old=JSON.parse(localStorage.getItem(key)||'null');if(old){tags=old.tags||[];break;}}catch{}}return {v:1,draft:null,localRecords:[],tags:organizeTags(tags),note:''};}
+function load(){try{resetTrialData(localStorage,'launch-20261021');const saved=JSON.parse(localStorage.getItem(KEY)||'null');if(saved?.v===1&&(!saved.draft||validAnswers(saved.draft.answers)))return saved;}catch{}let tags=[];for(const key of ['heki16_unified40_v3','heki16_unified40_v2','heki16_unified40_v1']){try{const old=JSON.parse(localStorage.getItem(key)||'null');if(old){tags=old.tags||[];break;}}catch{}}return {v:1,draft:null,localRecords:[],tags:organizeTags(tags),note:''};}
 let recordNext='profile',recordShareOptions=null;
 let state=load(),owner={signedIn:false,records:[],mutual:[]},config={localTest:false},page=0,subpage=0,censorManual=false,sample=false,shared=null,listingItems=[],candidateIndex=0,filters={intent:'',age:'',gender:'',trait:'',relation:'any'},loadedListing=false,listingError='',listingNext=null,syncing=false,syncAgain=false,entered=0,tokenPromise=null,widget=null,epoch=0,syncController=null,shareUrl='',shareCard=null,shareNameOnly=false;
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(state));$('#storage-warning').hidden=true;}catch{$('#storage-warning').hidden=false;}};
@@ -74,16 +74,18 @@ async function syncDraft(){const draft=state.draft,observedEpoch=epoch;if(!draft
 function home(){const d=state.draft;return `<section class="deck entrance"><div class="entry-top"><span class="editorial-label">PRIVATE DOSSIER</span><button class="text-button" data-action="account">${icon('key')}記録を引き継ぐ</button></div><div class="entry-copy"><h1>${text('「SかMか」だけでは、言い切れない。')}</h1><p class="entry-lead">${text('主導したい。甘えたい。翻弄もされたい。')}</p><p>${text('24の場面から、あなたの性癖に名前を。')}</p></div><div class="entry-preview"><span class="roman">I</span><div><strong>好きな場面から、名前がつく。</strong><p>二つ名と、思いがけない一面を持ち帰ろう。</p></div></div><div class="entry-actions">${d&&!d.complete?btn('続きから答える','resume','primary'):btn('診断をはじめる '+icon('arrow'),'start','primary')}${btn('結果の見本を見る','sample','secondary')}<p class="entry-meta">24場面 · 18歳以上向け · 登録画面なしで開始</p></div></section>`;}
 function start(defaultTimeframe='recent'){
   accrue();measure('start_open');
-  const g=state.draft?.persona?.gender||'unset',a=state.draft?.persona?.age||'unset',m=state.draft?.context?.mood||'ordinary';
-  modal("どちらの自分で答える？",`<div class="start-form"><div class="start-fields"><fieldset><legend>答えるときの目線</legend><div class="segmented"><label><input type="radio" name="timeframe" value="recent" ${defaultTimeframe==='recent'?'checked':''}><span>普段の好み</span></label><label><input type="radio" name="timeframe" value="now" ${defaultTimeframe==='now'?'checked':''}><span>今の望み</span></label></div><p id="timeframe-hint" class="frame-hint">${defaultTimeframe==='now'?'今この瞬間にしたい・されたい方で答える':'日頃よく惹かれる傾向で答える'}</p></fieldset><div class="persona-fields"><fieldset><legend>身体視点（設問の描写）</legend><div class="pill-row cols-4">${Object.entries({woman:'女性',man:'男性',diverse:'その他',unset:'答えない'}).map(([v,l])=>`<label class="pill"><input type="radio" name="gender-pill" value="${v}" ${g===v?'checked':''}><span>${esc(l)}</span></label>`).join('')}</div><input type="hidden" id="gender" value="${esc(g)}"></fieldset><div class="field-pair compact-pair"><label class="field compact-field">年代${select('age',AGES,a)}</label><label class="field compact-field">今の気分${select('mood',MOODS,m)}</label></div></div><div class="consent-compact"><label class="check"><input type="checkbox" id="adult" checked><span>18歳以上です（合意ある成人同士の場面として答えます）</span></label><label class="check"><input type="checkbox" id="contribute" checked><span>回答と利用の記録を診断の改善と自分の履歴に提供します（非公開・掲載は後で選択） <a href="/privacy/" target="_blank" rel="noopener">詳細</a></span></label></div><p id="start-error" class="error" role="alert"></p></div><div class="start-actions">${btn('同意して、はじめる '+icon('arrow'),'confirm-start','primary wide')}${btn('提供せず、この端末だけで試す','start-local','text-button wide')}</div></div>`);
+  const chosen=(key,value)=>Object.hasOwn(PROFILE_OPTIONS[key],value)?value:'';
+  const g=chosen('gender',state.draft?.persona?.gender),a=chosen('age',state.draft?.persona?.age),m=chosen('mood',state.draft?.context?.mood);
+  modal("どちらの自分で答える？",`<div class="start-form"><div class="start-fields"><fieldset><legend>答えるときの目線</legend><div class="segmented"><label><input type="radio" name="timeframe" value="recent" ${defaultTimeframe==='recent'?'checked':''}><span>普段の好み</span></label><label><input type="radio" name="timeframe" value="now" ${defaultTimeframe==='now'?'checked':''}><span>今の望み</span></label></div><p id="timeframe-hint" class="frame-hint">${defaultTimeframe==='now'?'今この瞬間にしたい・されたい方で答える':'日頃よく惹かれる傾向で答える'}</p></fieldset><div class="persona-fields"><fieldset><legend>身体視点（設問の描写）</legend><div class="pill-row cols-3">${Object.entries({woman:'女性',man:'男性',diverse:'その他'}).map(([v,l])=>`<label class="pill"><input type="radio" name="gender-pill" value="${v}" ${g===v?'checked':''}><span>${esc(l)}</span></label>`).join('')}</div><input type="hidden" id="gender" value="${esc(g)}"></fieldset><div class="field-pair compact-pair"><label class="field compact-field">年代${select('age',PROFILE_OPTIONS.age,a)}</label><label class="field compact-field">今の気分${select('mood',PROFILE_OPTIONS.mood,m)}</label></div></div><div class="consent-compact"><label class="check"><input type="checkbox" id="adult" checked><span>18歳以上です（合意ある成人同士の場面として答えます）</span></label><label class="check"><input type="checkbox" id="contribute"><span>回答と利用の記録を診断の改善と自分の履歴に提供します（非公開・掲載は後で選択） <a href="/privacy/" target="_blank" rel="noopener">詳細</a></span></label></div><p id="start-error" class="error" role="alert"></p></div><div class="start-actions">${btn('同意して、はじめる '+icon('arrow'),'confirm-start','primary wide')}</div></div>`);
 }
-function confirmStart(provide){
-  const genderVal=document.querySelector('[name=gender-pill]:checked')?.value||$('#gender')?.value||'unset';
+function confirmStart(){
+  const genderVal=document.querySelector('[name=gender-pill]:checked')?.value||'';
   if($('#gender'))$('#gender').value=genderVal;
-  const missing=firstMissingChoice({mood:$('#mood').value,age:$('#age').value,gender:genderVal},{mood:MOODS,age:AGES,gender:GENDERS});
-  if(missing){$('#start-error').textContent='気分・年代・性別を選んでください。「回答しない」も選べます。';$('#'+missing)?.focus();return;}
+  const missing=firstMissingChoice({mood:$('#mood').value,age:$('#age').value,gender:genderVal},PROFILE_OPTIONS);
+  if(missing){$('#start-error').textContent={mood:'今の気分を選んでください。',age:'年代を選んでください。',gender:'身体視点を選んでください。'}[missing];(missing==='gender'?document.querySelector('[name=gender-pill]'):$('#'+missing))?.focus();return;}
   if(!$('#adult').checked){$('#start-error').textContent='18歳以上の方が対象です。';$('#adult').focus();return;}
-  const useConsent=provide===undefined?($('#contribute')?$('#contribute').checked:true):provide;
+  if(!$('#contribute').checked){$('#start-error').textContent='回答の提供への同意を確認してください。';$('#contribute').focus();return;}
+  const useConsent=true;
   const pendingStart={context:{timeframe:document.querySelector('[name=timeframe]:checked')?.value||'recent',mood:$('#mood').value,timeBand:timeBand()},persona:{age:$('#age').value,gender:genderVal}};
   if(!owner.signedIn&&state.scope)state=reconcileVault(state,null,[],localStorage);
   state.draft={id:crypto.randomUUID(),instrument:INSTRUMENT,answers:emptyAnswers(),dwell:Array(24).fill(0),visited:0,index:0,revision:1,startedAt:Date.now(),complete:false,consent:useConsent,consentVersion:CONSENT,serverStarted:false,synced:false,context:{...pendingStart.context},persona:{...pendingStart.persona}};
@@ -224,7 +226,6 @@ document.addEventListener('click',async e=>{
  if(!action)return;const busy=target.tagName==='BUTTON';if(busy)target.disabled=true;
  try{switch(action){
   case 'start':start('recent');break;case 'start-now':start('now');break;case 'confirm-start':confirmStart();break;
-   case 'start-local':confirmStart(false);break;
    case 'copy-link':await copy(shareUrl);break;case 'copy-post':await copy(postText());break;
   case 'sample':sample=true;shared=null;page=0;subpage=0;navigate('profile');render();break;
   case 'resume':sample=false;shared=null;navigate('quiz');render();break;
@@ -249,7 +250,7 @@ document.addEventListener('click',async e=>{
   case 'copy-recovery':await copy($('#created-recovery').value);break;
   case 'login':epoch++;syncController?.abort();syncing=false;syncAgain=false;tokenPromise=null;await api('/api/recovery/login',{key:$('#recovery-key').value.trim(),token:await botToken()});await refreshOwner(true);close();sample=false;shared=null;page=3;navigate('profile');render();say('記録を引き継ぎました。');break;
   case 'retry-sync':await syncDraft();render();break;
-  case 'persona':modal('年代・性別を、変更する。',`<p>統計では、同じ年代や性別の回答をまとめます。募集一覧への表示は、掲載するときに別に選びます。</p><label class="field">年代 ${select('edit-age',AGES,state.draft.persona.age)}</label><label class="field">性別 ${select('edit-gender',GENDERS,state.draft.persona.gender)}</label>${btn('この内容で保存する','save-persona','primary wide')}`);break;
+  case 'persona':modal('年代・性別を、変更する。',`<p>統計では、同じ年代や性別の回答をまとめます。募集一覧への表示は、掲載するときに別に選びます。</p><label class="field">年代 ${select('edit-age',PROFILE_OPTIONS.age,state.draft.persona.age)}</label><label class="field">性別 ${select('edit-gender',PROFILE_OPTIONS.gender,state.draft.persona.gender)}</label>${btn('この内容で保存する','save-persona','primary wide')}`);break;
   case 'save-persona':{const persona={age:$('#edit-age').value,gender:$('#edit-gender').value};if(state.draft.consent&&state.draft.serverStarted)await api('/api/persona',{id:state.draft.id,persona});state.draft.persona=persona;save();close();say('保存しました。');break;}
   case 'edit-tags':editTags();break;case 'save-note':state.note=$('#personal-note').value.trim();save();close();say('自分の言葉を保存しました。');break;
   case 'backup':download(new Blob([JSON.stringify({version:1,state,records:owner.records},null,2)],{type:'application/json'}),'nocturne-private-records.json');break;
