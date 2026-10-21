@@ -1,6 +1,9 @@
 {
+  "provider": "myfans",
   "enabled": false,
   "siteApproved": false,
+  "mediaUrl": "https://nocturne.aiyume.workers.dev/",
+  "personalizationEnabled": false,
   "allowedHosts": [],
   "campaigns": []
 }

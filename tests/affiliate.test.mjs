@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {AD_CONSENT,adConsentApplies,selectPromotions} from '../src/affiliate-core.mjs';
+import {handleMetrics} from '../src/metrics-service.mjs';
+import {readAdminReport} from '../src/admin-report.mjs';
+import {D1} from './fixtures/d1.mjs';
+const now=Date.parse('2026-10-21T00:00:00Z');
+const offers=[{id:'generic',affinities:[],expiresAt:'2027-01-01'},{id:'other',affinities:['yield'],expiresAt:'2027-01-01'},{id:'selected',affinities:['lead'],expiresAt:'2027-01-01'}];
+test('advertising needs a separate, current, result-specific choice; research consent does not grant it',()=>{
+ const consent={version:AD_CONSENT,recordId:'this-record',acceptedAt:now};
+ assert.equal(adConsentApplies(null,'this-record',now),false);
+ assert.equal(adConsentApplies({consent:true,consentVersion:'nocturne-2026-10-21'},'this-record',now),false);
+ assert.equal(adConsentApplies(consent,'this-record',now),true);
+ for(const changed of [{recordId:'other-account-record'},{version:'old'},{acceptedAt:now+1},{acceptedAt:now-30*86400000},{acceptedAt:'today'}])assert.equal(adConsentApplies({...consent,...changed},'this-record',now),false);
+});
+test('only explicit choice enables local ranking; demographics, boundaries, unknown desires and history cannot alter it',()=>{
+ const profile={facets:[{id:'lead',strong:true},{id:'yield',strong:false}],gender:'man',age:'20-24',history:['yield'],tags:['yield']};
+ assert.deepEqual(selectPromotions(offers,{...profile,consented:false},now).map(c=>c.id),['generic','other','selected']);
+ assert.deepEqual(selectPromotions(offers,{...profile,consented:true},now).map(c=>c.id),['selected','generic','other']);
+ assert.deepEqual(selectPromotions(offers,{facets:[],consented:true},now).map(c=>c.id),['generic','other','selected']);
+ assert.deepEqual(selectPromotions(offers,{},Date.parse('2028-01-01')),[]);
+});
+test('PR click counts are anonymous, deduplicated and available to the owner without campaign or answer linkage',async()=>{
+ const origin='https://nocturne.example',DB=new D1(),env={DB,SITE_ORIGIN:origin,METRIC_LIMIT:{limit:async()=>({success:true})}},body={session:crypto.randomUUID(),events:['visit','pr_open','pr_click'],source:'direct',device:'mobile'};
+ const req=b=>new Request(origin+'/api/metrics',{method:'POST',headers:{Origin:origin,'X-Nocturne':'1','Content-Type':'application/json'},body:JSON.stringify(b)});
+ assert.equal((await handleMetrics(req(body),env,now)).status,200);
+ assert.equal((await handleMetrics(req(body),env,now)).status,200);
+ assert.equal((await handleMetrics(req({...body,campaignId:'private-preference'}),env,now)).status,400);
+ assert.equal((await handleMetrics(req({...body,facets:['lead']}),env,now)).status,400);
+ const rows=(await DB.prepare('SELECT event,SUM(n) n FROM nocturne_metric_daily GROUP BY event').all()).results;
+ assert.deepEqual(Object.fromEntries(rows.map(r=>[r.event,r.n])),{pr_click:1,pr_open:1,visit:1});
+ const report=await readAdminReport(env,Date.now());assert.equal(report.traffic.events.pr_click,1);assert.equal(report.traffic.events.pr_open,1);
+ assert.ok(!JSON.stringify(report).includes(body.session));assert.ok(!JSON.stringify(report).includes('private-preference'));
+});
