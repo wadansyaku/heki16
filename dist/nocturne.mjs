@@ -1,9 +1,12 @@
+import {COPY,QUESTION_EDITS} from './copy.mjs';
+import {ART_VERSION,preferredArt,validArt} from './art.mjs';
 // Choice order carries no score. Only explicitly selected desires are evidence.
 // Upgraded R-18 Visceral & High-Volume Dossier Edition v2 (nocturne24-2 compatible drop-in for heki16)
-export const INSTRUMENT='nocturne24-3';
+export const INSTRUMENT='nocturne24-4';
 export const PREVIOUS_INSTRUMENT='nocturne24-1';
-export const CONSENT='nocturne-2026-10-21';
-export const PREVIOUS_CONSENT='nocturne-2026-10-19';
+export const CONSENT='nocturne-2026-10-21b';
+export const PREVIOUS_CONSENT='nocturne-2026-10-21';
+export const LEGACY_CONSENT='nocturne-2026-10-19';
 export const CHAPTERS=['密室の扉と主導権','体温と視線の駆け引き','理性が溶ける深層場面','渇望の核と絶対境界'];
 
 const option=(label,...signals)=>({label,signals});
@@ -210,7 +213,13 @@ export const SCENES=[
     option('「今日は私の勝ちだね。……次は、あなたが私を壊す番にしてくれる？」','lead','switch'),
     option('「気持ちよかったね。あとは自分のペースでゆっくり休もうね」','space')
   ])
-].map((q,id)=>({...q,id,chapter:Math.floor(id/6),choices:q.choices.map((c,value)=>({...c,value}))}));
+].map((q,id)=>{
+  const edit=QUESTION_EDITS.find(e=>e.id===id);
+  return {...q,id,text:edit?.text||q.text,persp:edit?.perspectiveText||q.persp,chapter:Math.floor(id/6),choices:q.choices.map((c,value)=>{
+    const rejection=edit?.declines?.find(d=>d.choice===value),override=edit?.signalOverrides?.find(d=>d.choice===value);
+    return {...c,value,label:edit?.choices[value]||c.label,signals:override?.signals||c.signals,rejects:rejection?.facets||[],rejectionScope:rejection?.scope||'scene',rejectionLabel:rejection?.label||'',...(edit?.perspectiveChoices?.[value]?{persp:edit.perspectiveChoices[value]}:{})};
+  })};
+});
 
 export function sceneText(q,gender='unset'){
   return q.persp?.[gender]||q.text;
@@ -228,15 +237,20 @@ export const FACETS=[
 
 export const MOODS={ordinary:'いつもどおり',soft:'甘えたい気分',playful:'駆け引きを楽しみたい',calm:'ゆっくり過ごしたい',unset:'決めずに答える'};
 export const AGES={'18-19':'18〜19歳','20-24':'20〜24歳','25-29':'25〜29歳','30-34':'30〜34歳','35-39':'35〜39歳','40-44':'40〜44歳','45-49':'45〜49歳','50-54':'50〜54歳','55-59':'55〜59歳','60+':'60歳以上',unset:'答えない'};
-export const GENDERS={woman:'女性',man:'男性',diverse:'その他・どちらでもない',unset:'答えない'};
+export const GENDERS={woman:'女性',man:'男性',diverse:COPY.genderDiverse,unset:'答えない'};
 export const PROFILE_OPTIONS=Object.fromEntries(Object.entries({mood:MOODS,age:AGES,gender:GENDERS}).map(([key,options])=>[key,Object.fromEntries(Object.entries(options).filter(([value])=>value!=='unset'))]));
 export const BOUNDARIES={boundaryPain:'痛みは受けたくない',boundaryWords:'きつい言葉は苦手',boundaryControl:'生活までの束縛は望まない',boundaryRole:'役を決めつけないで'};
 export const CONTEXTS={contextTrust:'信頼で変わる',contextMood:'気分や疲れ具合で変わる',contextPartner:'相手によって変わる',contextScene:'場面によって変わる',contextStable:'好みは比較的変わらない'};
 
 const has=(q,signal)=>q.choices.some(c=>c.signals.includes(signal));
 export function validAnswers(a){
-  return Array.isArray(a)&&a.length===SCENES.length&&a.every((v,i)=>v===null||Number.isInteger(v)&&v>=0&&v<=31&&bits(v).length<=(SCENES[i].single?1:SCENES[i].boundary?4:2)&&!(SCENES[i].boundary&&(v&16)&&v!==16));
+  return Array.isArray(a)&&a.length===SCENES.length&&a.every((v,i)=>v===null||Number.isInteger(v)&&v>=1&&v<=31&&bits(v).length<=(SCENES[i].single?1:SCENES[i].boundary?4:2)&&!(SCENES[i].boundary&&(v&16)&&v!==16)&&!choiceConflict(SCENES[i],v));
 }
+export function choiceConflict(q,mask){
+  const chosen=q.choices.filter((c,i)=>(mask&(1<<i))!==0),affirmed=new Set(chosen.flatMap(c=>c.signals));
+  return chosen.some(c=>c.rejects.some(id=>affirmed.has(id)));
+}
+export function selectedRejections(answers,gender='diverse'){return SCENES.flatMap(q=>bits(answers[q.id]||0).filter(i=>q.choices[i].rejects.length).map(i=>({question:q.id,label:choiceLabel(q.choices[i],gender),facets:q.choices[i].rejects,scope:q.choices[i].rejectionScope})));}
 export const bits=mask=>[0,1,2,3,4].filter(i=>(mask&(1<<i))!==0);
 export const emptyAnswers=()=>Array(SCENES.length).fill(null);
 export function selectedSignals(a){
@@ -244,141 +258,44 @@ export function selectedSignals(a){
   SCENES.forEach(q=>{if(q.self||a[q.id]===null)return;const seen=new Set(bits(a[q.id]).flatMap(i=>q.choices[i].signals));for(const s of seen)(out[s]??=[]).push(q.id);});
   return out;
 }
-function evidenceFor(answers,signals,focus){
+function evidenceFor(answers,signals,focus,gender='diverse'){
   const remaining=new Set(focus),chosen=[],ids=[...new Set(focus.flatMap(s=>signals[s]||[]))];
   while(chosen.length<3&&ids.some(id=>!chosen.includes(id))){const ranked=ids.filter(id=>!chosen.includes(id)).sort((a,b)=>[...remaining].filter(s=>signals[s]?.includes(b)).length-[...remaining].filter(s=>signals[s]?.includes(a)).length||a-b),id=ranked[0];chosen.push(id);for(const s of remaining)if(signals[s]?.includes(id))remaining.delete(s);}
-  return chosen.map(id=>({id,question:SCENES[id].text,answers:bits(answers[id]).map(i=>SCENES[id].choices[i].label)}));
+  return chosen.map(id=>({id,question:sceneText(SCENES[id],gender),answers:bits(answers[id]).map(i=>SCENES[id].choices[i]).filter(c=>!c.rejects.length&&c.signals.some(s=>focus.includes(s))).map(c=>choiceLabel(c,gender))}));
 }
 
-function buildDeepDossier(answers,facets,signals,title,gap,boundaries,contexts){
-  const pct=s=>facets.find(f=>f.id===s)?.pct||0;
-  const strongList=facets.filter(f=>f.strong).sort((a,b)=>b.pct-a.pct||b.count-a.count);
-  const subStrong=strongList.slice(0,5).map(f=>`${f.label}(${f.pct}%)`).join('・')||'まだ探索段階';
-
-  // Chapter-split escalation analysis: Early (Scenes 1..9) vs Deep Climax (Scenes 10..19)
-  const countRange=(s,minId,maxId)=>(signals[s]||[]).filter(id=>id>=minId&&id<=maxId).length;
-  const earlyDom=countRange('lead',1,9)+countRange('sadism',1,9);
-  const earlySub=countRange('yield',1,9)+countRange('receiveCare',1,9);
-  const deepSub=countRange('masochism',10,19)+countRange('restraintReceive',10,19)+countRange('painReceive',10,19);
-  const deepDom=countRange('sadism',10,19)+countRange('restraintGive',10,19)+countRange('painGive',10,19);
-
-  const selfIdx=answers[0]===null?null:bits(answers[0])[0];
-  const selfLabels=['「自分から主導権を握る」','「相手のリードに身を委ねる」','「攻めも受けも両方楽しむ」','「上下を決めず対等でいる」','「まだわからない」'];
-  const selfText=selfIdx!==null?selfLabels[selfIdx]:'「未定」';
-
-  let maskVsDeep='';
-  if((selfIdx===0||earlyDom>earlySub)&&(pct('yield')>=35||pct('restraintReceive')>=35||pct('masochism')>=35||deepSub>=3)){
-    maskVsDeep=`入り口の自己認識（${selfText}）や序盤の駆け引きでは自分のペースを保とうとする姿勢が見えますが、密室の深層場面（第3〜4章）に入ると「委ねたい(${pct('yield')}%)」「翻弄されたい(${pct('masochism')}%)」「動きを任せたい(${pct('restraintReceive')}%)」が急上昇しています。普段は気を張って強がっている分、自分以上の熱量を持つ相手に退路を塞がれると、理性のガードが剥がれて一気に無力化の快楽へなだれ込む「強がり融解」の二面性を持っています。`;
-  }else if((selfIdx===1||earlySub>earlyDom)&&(pct('lead')>=35||pct('sadism')>=35||pct('restraintGive')>=35||deepDom>=3)){
-    maskVsDeep=`入り口の自己認識では${selfText}を選んでいますが、具体的な深層場面に入ると「主導したい(${pct('lead')}%)」「翻弄したい(${pct('sadism')}%)」「動きを決めたい(${pct('restraintGive')}%)」の熱が強く浮上しています。最初は相手に華を持たせて従順に振る舞いつつ、相手の余裕が崩れて甘い声が出た瞬間に主導権を奪い取り、涙目になるまで追い詰めたくなる「隠れ捕食者」のスイッチを秘めています。`;
-  }else if((pct('masochism')>=35||pct('painReceive')>=35||pct('restraintReceive')>=35)&&pct('receiveCare')>=35){
-    maskVsDeep=`あなたの最大の核心は、行為中の激しい被虐・無力化（翻弄されたい:${pct('masochism')}% / 拘束受容:${pct('restraintReceive')}%）と、事後の全肯定ケア（甘えたい:${pct('receiveCare')}%）が同時に高水準で同居している点です。ただ優しいだけでも、ただ乱暴なだけでも満たされず、「容赦なく乱されて理性が飛んだ直後に、壊れ物のように抱きしめられて頭を撫でられる温度差（飴と鞭）」によって最も深く脳が溶ける構造をしています。`;
-  }else if(pct('restraintReceive')>=35&&pct('painReceive')===0){
-    maskVsDeep=`肉体的な痛み（痛みを受けたい:0%）は明確に拒む一方で、「動きや合図を任せたい(${pct('restraintReceive')}%)」「委ねたい(${pct('yield')}%)」が強く発火しています。傷つけられたいのではなく、両手首の固定や寸止めによって「自分の意思では動けない・勝手にイけない無傷の無力感」を作られたときに最も深く感度が跳ね上がるタイプです。`;
-  }else{
-    maskVsDeep=`自己認識の${selfText}というスタンスと、密室の深層場面で選ばれた反応（${subStrong}）が淀みなく直結しています。自分の快楽のツボや望む距離感を高い解像度で把握しており、無理な背伸びをせずとも、条件が揃った密室では自然にリミッターを外せるタイプです。`;
-  }
-
-  // Scene-specific callbacks: Tired Night (Scene 9), Afterglow (Scene 11), Motive (Scene 20), Final Whisper (Scene 23)
-  const mBits=answers[20]!==null?bits(answers[20]):[];
-  const motiveMap=[
-    '「他の誰でもない自分だけに相手が執着し、狂うほど求めてくれる愛の証拠」を身体で確かめたい渇望',
-    '日常で背負っている「ちゃんとしなきゃ」という鎧を脱ぎ捨て、無条件で甘やかされて溶けたい渇望',
-    '「どう動くか」の判断と責任をすべて信頼できる相手に預け、思考停止してただの生き物に戻りたい渇望',
-    '自分の指先や言葉ひとつで相手の繕った仮面が剥がれ、余裕が崩壊する瞬間に生の実感を得る渇望',
-    '自分の欲望を隠さず主導権を握り、二人の夜を自分のペースと美学で染め上げたい渇望'
-  ];
-  const motiveText=mBits.length?mBits.map(i=>motiveMap[i]).join('と、'):'日常の緊張を解いて深く満たされたいという渇望';
-
-  const tiredBits=answers[9]!==null?bits(answers[9]):[];
-  const tiredText=tiredBits.length?SCENES[9].choices[tiredBits[0]].label:'日常の鎧を脱いで呼吸を整える時間';
-
-  const wBits=answers[23]!==null?bits(answers[23]):[];
-  const whisperText=wBits.length?wBits.map(i=>SCENES[23].choices[i].label).join(' ／ '):'「よく頑張ったね、もう何も考えないでいいよ」';
-
-  const motiveAndAfterglow=`あなたが夜の奥底で求めている本当の理由は、${motiveText}です。特に日常で気を張って疲れきった夜には「${tiredText}」を強く求めており、行為のあとに『${whisperText}』と囁かれることで初めて心の底から救われます。`;
-
-  // Sensory & Fetish Circuit (Scenes 7, 8, 12, 13, 14)
-  const sensoryList=['voice','scent','touch','style'].map(id=>({id,label:FACETS.find(f=>f.id===id).label,pct:pct(id)})).sort((a,b)=>b.pct-a.pct);
-  const topSensory=sensoryList.filter(s=>s.pct>0).slice(0,2).map(s=>`${s.label}(${s.pct}%)`).join('×')||'自然な肌感覚';
-  const sensoryNarrative=`五感の着火回路では【${topSensory}】が最も鋭く反応しています。${pct('voice')>=35?'物理的な接触だけでなく、耳元に直接吹きかけられる低い吐息や淫らな実況・指示の言葉が脳の奥を直接痺れさせる最大の媚薬になります。':''}${pct('style')>=35?'また、いきなりすべてを脱がせるよりも、整ったスーツや下着を少しだけずらして秘部を晒す「着衣の乱れと視覚的コントラスト」に強いフェティシズムが宿っています。':''}${pct('scent')>=35||pct('touch')>=35?'さらに、首筋に顔を埋めたときの汗と体温の香りや、逃げ場のない素肌の密着温度が加わることで感度が何倍にも跳ね上がります。':''}`;
-
-  // 4-Stage Handling Manual with secretWord for Idea C Redaction Censor
-  const step1Secret=pct('lead')>=pct('yield')&&pct('lead')>=35?'深く舌を入れるキスと主導権の奪取':pct('voice')>=35?'耳元の低い囁きと退路の封鎖':pct('yield')>=35?'壁やベッドへの強引な押し倒し':'体温を確かめ合う濃密な密着';
-  const step2Secret=pct('restraintReceive')>=35?'両手首の固定×寸止め絶頂管理':pct('restraintGive')>=35?'手首のロック×涙目の懇願引き出し':pct('masochism')>=35?'余裕を剥がす執拗な焦らしと言葉責め':pct('sadism')>=35?'寸止めと執拗な責めによる余裕破壊':'逃げ場のない密着愛撫の重ね掛け';
-  const step3Secret=pct('receiveCare')>=35?'事後の過剰な抱擁と「いい子だね」の全肯定':pct('giveCare')>=35?'乱れた相手を胸に抱きしめる溺愛ケア':pct('wet')>=35?'繋がったまま離れない濃密な余韻':'心地よい一人の余白と穏やかな会話';
-  const step4Secret=boundaries[0]||'合意と文脈を無視した一方的なプレイ';
-
-  const manual=[
-    {
-      step:'STEP 01 // 導入：理性の剥がし方',
-      secretWord:step1Secret,
-      title:`最初は「${step1Secret}」で日常の仮面を剥がす`,
-      body:pct('yield')>=pct('lead')
-        ?`遠慮がちに様子を伺うよりも、密室の扉が閉まった瞬間に距離を詰め、「${step1Secret}」で思考する隙を奪うのが正解です。${sensoryNarrative}`
-        :`あなた自身が流れを握りたい熱を持っているため、「${step1Secret}」から自分のペースへ引き込むか、あるいは相手が絶妙に挑発してあなたの中の捕食本能に火をつける導入が最も昂ります。`
-    },
-    {
-      step:'STEP 02 // 絶頂：深層スイッチの押し方',
-      secretWord:step2Secret,
-      title:`クライマックスは「${step2Secret}」でリミッターを外す`,
-      body:pct('restraintReceive')>=35||pct('masochism')>=35
-        ?`中盤以降は、お行儀のいい愛撫だけでは物足りなくなります。「${step2Secret}」によって自分の意思で動けない・勝手に達せない状況を作られ、淫らに乱れた姿を突きつけられることで一番深い絶頂へ落ちます。`
-        :`クライマックスでは「${step2Secret}」を軸に、相手の繕った余裕が剥がれていく反応をダイレクトに引き出す（あるいは熱量で攻守が激しく入れ替わる）展開が最大のカタルシスを生みます。`
-    },
-    {
-      step:'STEP 03 // 余韻：事後のピロートークと救済',
-      secretWord:step3Secret,
-      title:`果てた直後は「${step3Secret}」が絶対条件`,
-      body:`${motiveAndAfterglow} だからこそ行為が終わった直後には「${step3Secret}」を与え、余韻の中で優しく包み込むことで、心身ともに抜け出せないほど深い充足が完成します。`
-    },
-    {
-      step:'STEP 04 // 禁忌：絶対NGの地雷と変容トリガー',
-      secretWord:step4Secret,
-      title:`絶対タブーは「${step4Secret}」`,
-      body:`どれだけ雰囲気が良くても、【${boundaries.length?boundaries.join('／'):'信頼や合意を欠いた一方的な扱い'}】を踏まれた瞬間にスーッと血の気が引いて冷めてしまいます。逆に、【${contexts.length?contexts.join('・'):'深い信頼関係と非日常の空気'}】が揃った夜には、普段見せない裏スイッチが一気に解放されます。`
-    }
-  ];
-
+function buildDeepDossier(answers,facets,signals,title,gap,boundaries,contexts,gender='diverse'){
+  const selected=ids=>ids.flatMap(id=>bits(answers[id]||0).map(i=>({id,choice:SCENES[id].choices[i]}))).filter(x=>!x.choice.rejects.length);
+  const display=rows=>[...new Set(rows.map(x=>choiceLabel(x.choice,gender)))].join(' ／ ');
+  const roles=selected([1,2,3,4,5,17,18]).filter(x=>x.choice.signals.some(s=>['lead','yield','sadism','masochism','giveCare','receiveCare'].includes(s))).slice(0,2);
+  const senses=selected([7,12,13,14]).filter(x=>x.choice.signals.some(s=>['voice','scent','touch','style'].includes(s))).slice(0,2);
+  const after=selected([11,23]).slice(0,2);
+  const rejected=selectedRejections(answers,gender).map(x=>x.label);
+  const no= [...new Set([...boundaries,...rejected])];
+  const roleText=display(roles)||COPY.noSelection,senseText=display(senses)||COPY.noSensory,afterText=display(after)||COPY.noAfterglow;
+  const selfIndex=bits(answers[0]||0)[0],selfText=selfIndex===undefined?'':choiceLabel(SCENES[0].choices[selfIndex],gender);
   return {
-    subStrong,
-    maskVsDeep,
-    motiveText,
-    motiveAndAfterglow,
-    sensoryNarrative,
-    whisperText,
-    manual
-  };
-}
-
-export function fallbackDossierFromCard(card){
-  if(card?.dossier)return card.dossier;
-  const traits=new Set(card?.traits||[]);
-  const labels=(card?.traits||[]).map(id=>FACETS.find(f=>f.id===id)?.label).filter(Boolean);
-  const subStrong=labels.join('・')||(card?.tags||[]).join('・')||'共有されたカルテ';
-  const step1Secret=traits.has('lead')?'深く舌を入れるキスと主導権の奪取':traits.has('voice')?'耳元の低い囁きと退路の封鎖':'壁やベッドへの強引な押し倒し';
-  const step2Secret=traits.has('restraintReceive')?'両手首の固定×寸止め絶頂管理':traits.has('restraintGive')?'手首のロック×涙目の懇願引き出し':traits.has('masochism')?'余裕を剥がす執拗な焦らしと言葉責め':traits.has('sadism')?'寸止めと執拗な責めによる余裕破壊':'逃げ場のない密着愛撫の重ね掛け';
-  const step3Secret=traits.has('receiveCare')?'事後の過剰な抱擁と「いい子だね」の全肯定':traits.has('giveCare')?'乱れた相手を胸に抱きしめる溺愛ケア':'繋がったまま離れない濃密な余韻';
-  const step4Secret='合意と文脈を無視した一方的なプレイ';
-  return {
-    subStrong,
-    maskVsDeep:`共有されたカルテでは【${subStrong}】が核として表れています。${card?.quote||''} ${card?.summary||''}`.trim(),
-    motiveText:'信頼できる相手と深い熱量を共有したい渇望',
-    motiveAndAfterglow:`共有された特徴（${subStrong}）の背景には、普段の仮面を脱いで深い熱量を確かめ合いたい欲求が宿っています。`,
-    sensoryNarrative:`特に【${labels.slice(0,2).join('×')||'密着と吐息'}】のスイッチを意識して接することで、より深く波長が重なります。`,
-    whisperText:'「こんなに乱れたの、あなたの前だけだよ」',
+    subStrong:facets.filter(f=>f.strong).slice(0,4).map(f=>f.label).join('・')||COPY.resultSubtitle,
+    maskVsDeep:gap||selfText||COPY.noSelection,
+    motiveText:display(selected([20]))||COPY.noMotive,
+    motiveAndAfterglow:display(selected([20]))||COPY.noMotive,
+    sensoryNarrative:senseText,whisperText:display(selected([23]))||COPY.noAfterglow,
     manual:[
-      {step:'STEP 01 // 導入：理性の剥がし方',secretWord:step1Secret,title:`最初は「${step1Secret}」で日常の仮面を剥がす`,body:`共有された好みに合わせ、「${step1Secret}」から空気を作ることで自然にスイッチが入ります。`},
-      {step:'STEP 02 // 絶頂：深層スイッチの押し方',secretWord:step2Secret,title:`クライマックスは「${step2Secret}」でリミッターを外す`,body:`深層の核である「${step2Secret}」を軸に、二人の熱量を重ねていく展開が最も強く響きます。`},
-      {step:'STEP 03 // 余韻：事後のピロートークと救済',secretWord:step3Secret,title:`果てた直後は「${step3Secret}」が絶対条件`,body:`行為のあとは「${step3Secret}」で余韻を共有し、安心感の中で落ち着く時間を大切にしてください。`},
-      {step:'STEP 04 // 禁忌：絶対NGの地雷と変容トリガー',secretWord:step4Secret,title:`絶対タブーは「${step4Secret}」`,body:`公開カードには詳細なNG項目が含まれないため、実践の前にお互いの境界線を一つずつ確かめ合いましょう。`}
+      {step:COPY.manualRoleTitle,title:COPY.manualRoleTitle,body:roleText,secretWord:'',evidence:roles.map(x=>x.id)},
+      {step:COPY.manualSenseTitle,title:COPY.manualSenseTitle,body:senseText,secretWord:'',evidence:senses.map(x=>x.id)},
+      {step:COPY.manualAfterTitle,title:COPY.manualAfterTitle,body:afterText,secretWord:'',evidence:after.map(x=>x.id)},
+      {step:COPY.manualBoundaryTitle,title:COPY.manualBoundaryTitle,body:no.join(' ／ ')||COPY.noBoundary,secretWord:'',evidence:[]}
     ]
   };
 }
+// A public snapshot has no private dossier. Never infer one on the recipient's behalf.
+export function fallbackDossierFromCard(card){
+ return {subStrong:'',maskVsDeep:card?.summary||'',motiveText:'',motiveAndAfterglow:'',sensoryNarrative:'',whisperText:'',manual:[]};
+}
 
-export function diagnose(answers){
+export function diagnose(answers,gender='diverse'){
   if(!validAnswers(answers))throw Error('回答を確認してください。');
-  const signals=selectedSignals(answers),count=s=>signals[s]?.length||0,opportunities=s=>SCENES.filter(q=>!q.self&&answers[q.id]!==null&&has(q,s)).length,strong=s=>count(s)>=2&&count(s)/opportunities(s)>=.35;
+  const signals=selectedSignals(answers),rejections=selectedRejections(answers,gender),denied=new Set(rejections.filter(r=>r.scope==='general').flatMap(r=>r.facets)),count=s=>signals[s]?.length||0,opportunities=s=>SCENES.filter(q=>!q.self&&answers[q.id]!==null&&has(q,s)).length,strong=s=>!denied.has(s)&&count(s)>=2&&count(s)/opportunities(s)>=.35;
   const facets=FACETS.map(f=>{
     const c=count(f.id),opp=opportunities(f.id),pct=opp?Math.round((c/opp)*100):0;
     return {...f,count:c,opportunities:opp,pct,strong:strong(f.id),level:strong(f.id)?'よく選んだ':c?'選んだ場面がある':SCENES.some(q=>!q.self&&answers[q.id]!==null&&has(q,f.id))?'今回は選ばなかった':'まだわからない'};
@@ -430,22 +347,22 @@ export function diagnose(answers){
   if(candidates.length)({title,quote,summary,focus}=candidates.sort((a,b)=>fit(b)-fit(a)||Number(b.focus.some(s=>['scent','touch','voice','style','restraintGive','restraintReceive','painGive','painReceive'].includes(s)))-Number(a.focus.some(s=>['scent','touch','voice','style','restraintGive','restraintReceive','painGive','painReceive'].includes(s))))[0]);
   const self=answers[0]===null?null:bits(answers[0])[0];
   let gap=self===0&&strong('yield')?'リード派のつもりが、任せる時間も欲しかった。':self===1&&strong('lead')?'委ね派のつもりが、主導権も欲しかった。':null;
-  if(!gap){
-    if(self===0&&(strong('restraintReceive')||strong('masochism')))gap='リード派のつもりが、深層では組み伏せられて無力化されたい裏スイッチが発火しています。';
-    else if((strong('painReceive')||strong('masochism')||strong('restraintReceive'))&&strong('receiveCare'))gap='行為中は容赦なく乱されたいのに、直後には子どものように全肯定で甘やかされたい「飴と鞭の落差」が核にあります。';
-  }
+  if(focus.length)summary=evidenceFor(answers,signals,focus,gender).slice(0,2).flatMap(e=>e.answers).join(' ／ ');
   const tags=facets.filter(f=>f.strong).sort((a,b)=>b.count/b.opportunities-a.count/a.opportunities||b.count-a.count).slice(0,3).map(f=>f.label);
-  const boundaries=Object.keys(BOUNDARIES).filter(s=>count(s)).map(s=>BOUNDARIES[s]);
+  const boundaries=[...new Set([...Object.keys(BOUNDARIES).filter(s=>count(s)).map(s=>BOUNDARIES[s]),...rejections.filter(r=>r.scope==='general').map(r=>r.label)])];
   const contexts=Object.keys(CONTEXTS).filter(s=>count(s)).map(s=>CONTEXTS[s]);
-  const dossier=buildDeepDossier(answers,facets,signals,title,gap,boundaries,contexts);
-  return {instrument:INSTRUMENT,title,quote,summary,gap,facets,tags,focus,evidence:evidenceFor(answers,signals,focus),boundaries,contexts,dossier,answered:answers.filter(a=>a!==null).length,signals:Object.fromEntries(Object.entries(signals).map(([s,ids])=>[s,ids.length]))};
+  const dossier=buildDeepDossier(answers,facets,signals,title,gap,boundaries,contexts,gender);
+  return {instrument:INSTRUMENT,title,quote,summary,gap,facets,tags,focus,evidence:evidenceFor(answers,signals,focus,gender),boundaries,contexts,dossier,rejections,art:preferredArt({focus}),answered:answers.filter(a=>a!==null).length,signals:Object.fromEntries(Object.entries(signals).map(([s,ids])=>[s,ids.length]))};
 }
-export function publicCard(profile,tags=profile.tags,personal=''){
-  return {v:1,instrument:profile.instrument,title:profile.title,quote:(profile.gap||profile.quote).slice(0,120),summary:(personal||profile.summary).slice(0,240),tags:tags.slice(0,3),traits:profile.facets.filter(f=>f.strong).sort((a,b)=>b.count/b.opportunities-a.count/a.opportunities||b.count-a.count).slice(0,4).map(f=>f.id)};
+export function publicCard(profile,tags=profile.tags||[],personal='',art){
+  return {v:2,instrument:profile.instrument,title:profile.title,quote:(profile.gap||profile.quote||'').slice(0,120),summary:(personal||profile.summary||'').slice(0,240),tags:tags.slice(0,3),traits:(profile.facets||[]).filter(f=>f.strong&&tags.slice(0,3).includes(f.label)).sort((a,b)=>b.count/b.opportunities-a.count/a.opportunities||b.count-a.count).slice(0,3).map(f=>f.id),art:validArt(art)?art:profile.art||preferredArt(profile),artVersion:ART_VERSION};
 }
-export function listingCard(profile){const card=publicCard(profile);return {...card,summary:'',traits:card.traits.slice(0,3)};}
+export function listingCard(profile,art){const card=publicCard(profile,undefined,'',art);return {...card,traits:card.traits.slice(0,3)};}
 const clean=s=>typeof s==='string'&&s===s.trim()&&!/[<>\u0000-\u001f]/.test(s);
-export function validCard(p){return !!p&&typeof p==='object'&&!Array.isArray(p)&&Object.keys(p).every(k=>['v','instrument','title','quote','summary','tags','traits'].includes(k))&&p.v===1&&typeof p.instrument==='string'&&p.instrument.length<=40&&clean(p.title)&&p.title.length>=1&&p.title.length<=40&&clean(p.quote)&&p.quote.length<=120&&clean(p.summary)&&p.summary.length<=240&&Array.isArray(p.tags)&&p.tags.length<=3&&p.tags.every(t=>clean(t)&&t.length>=1&&t.length<=24)&&Array.isArray(p.traits)&&p.traits.length<=4&&new Set(p.traits).size===p.traits.length&&p.traits.every(id=>FACETS.some(f=>f.id===id));}
+export function validCard(p){
+ const extra=p?.v===2?['art','artVersion']:[];
+ return !!p&&typeof p==='object'&&!Array.isArray(p)&&Object.keys(p).every(k=>['v','instrument','title','quote','summary','tags','traits',...extra].includes(k))&&[1,2].includes(p.v)&&(p.v===1||validArt(p.art)&&p.artVersion===ART_VERSION)&&typeof p.instrument==='string'&&p.instrument.length<=40&&clean(p.title)&&p.title.length>=1&&p.title.length<=40&&clean(p.quote)&&p.quote.length<=120&&clean(p.summary)&&p.summary.length<=240&&Array.isArray(p.tags)&&p.tags.length<=3&&p.tags.every(t=>clean(t)&&t.length>=1&&t.length<=24)&&Array.isArray(p.traits)&&p.traits.length<=4&&new Set(p.traits).size===p.traits.length&&p.traits.every(id=>FACETS.some(f=>f.id===id));
+}
 export function compare(a,b){
   const left=new Set(a.traits||a.facets?.filter(f=>f.strong).map(f=>f.id)),right=new Set(b.traits||b.facets?.filter(f=>f.strong).map(f=>f.id));
   const lines=[];
@@ -471,5 +388,6 @@ export function compare(a,b){
   if((left.has('painGive')&&bRight.has(BOUNDARIES.boundaryPain))||(right.has('painGive')&&bLeft.has(BOUNDARIES.boundaryPain))){
     lines.push({title:'境界線の事前確認（痛み）',text:'片方に刺激を与えたい熱があり、もう片方に「痛みは受けたくない」境界線があります。痛みではなく拘束や焦らしへ熱を向けると安心です。'});
   }
-  return lines.length?lines.slice(0,3):[{title:'まずは、好きな場面を一つずつ',text:'決め手になる共通点は、まだ少なめ。二つ名がついた理由から、聞いてみよう。'}];
+  const warnings=lines.filter(l=>l.title==='境界線の事前確認（痛み）');
+  return lines.length?[...warnings,...lines.filter(l=>!warnings.includes(l)).slice(0,3)]:[{title:'まずは、好きな場面を一つずつ',text:'決め手になる共通点は、まだ少なめ。二つ名がついた理由から、聞いてみよう。'}];
 }

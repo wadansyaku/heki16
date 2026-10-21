@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {adminIdentity} from '../src/admin-auth.mjs';
 import admin,{readAdminReport} from '../src/admin-worker.mjs';
-import {INSTRUMENT,CONSENT,PREVIOUS_CONSENT,emptyAnswers,diagnose} from '../src/nocturne.mjs';
+import {INSTRUMENT,CONSENT,PREVIOUS_CONSENT,LEGACY_CONSENT,emptyAnswers,diagnose} from '../src/nocturne.mjs';
 
 import {D1} from './fixtures/d1.mjs';
 import {reportFilters} from '../src/admin-report.mjs';
@@ -61,7 +61,7 @@ test('owner report uses all retained records, including more than 2,000 and olde
  const insert=DB.db.prepare('INSERT INTO nocturne_records(id,account_id,instrument,consent,answers,dwell,visited,cursor,timeframe,mood,age,gender,time_band,created_at,last_seen,completed_at,profile) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
  for(let i=0;i<2101;i++)insert.run('record-'+i,'private-sentinel',INSTRUMENT,CONSENT,JSON.stringify(answers),JSON.stringify(Array(24).fill(i%2?3000:1000)),16777215,23,'recent','soft','20-24','woman','night',before+i,now,now,JSON.stringify(diagnose(answers)));
  insert.run('incomplete','second-person',INSTRUMENT,CONSENT,JSON.stringify(emptyAnswers()),JSON.stringify(Array(24).fill(0)),1,0,'now','ordinary','30-34','man','night',now-3600000,now-3600000,null,null);
- insert.run('previous','previous-person',INSTRUMENT,PREVIOUS_CONSENT,JSON.stringify(answers),JSON.stringify(Array(24).fill(1000)),16777215,23,'recent','soft','20-24','woman','night',before,now,now,JSON.stringify(diagnose(answers)));
+ insert.run('previous','previous-person',INSTRUMENT,LEGACY_CONSENT,JSON.stringify(answers),JSON.stringify(Array(24).fill(1000)),16777215,23,'recent','soft','20-24','woman','night',before,now,now,JSON.stringify(diagnose(answers)));
  DB.db.exec('COMMIT');
  const r=await readAdminReport({DB},now);
  assert.equal(r.started,2102);assert.equal(r.people,2);assert.equal(r.completed,2101);assert.equal(r.possiblyPaused,1);assert.equal(r.sampleLimit,null);
@@ -70,7 +70,7 @@ test('owner report uses all retained records, including more than 2,000 and olde
  assert.equal(r.facets.find(f=>f.id==='lead').strong,1);assert.ok(!JSON.stringify(r).includes('private-sentinel'));assert.equal(r.landingVisits,0);
  const filtered=await readAdminReport({DB},now,new URLSearchParams('gender=man'));assert.equal(filtered.started,1);assert.equal(filtered.funnel[0].medianMs,null);assert.deepEqual(filtered.facets,[]);
  const seven=await readAdminReport({DB},now,new URLSearchParams('from='+new Date(now-6*86400000).toISOString().slice(0,10)));assert.equal(seven.started,1);
- for(let i=0;i<5;i++)insert.run('previous-retry-'+i,'previous-person',INSTRUMENT,PREVIOUS_CONSENT,JSON.stringify(answers),JSON.stringify(Array(24).fill(1000)),16777215,23,'recent','soft','20-24','woman','night',before,now,now,JSON.stringify(diagnose(answers)));
+ for(let i=0;i<5;i++)insert.run('previous-retry-'+i,'previous-person',INSTRUMENT,LEGACY_CONSENT,JSON.stringify(answers),JSON.stringify(Array(24).fill(1000)),16777215,23,'recent','soft','20-24','woman','night',before,now,now,JSON.stringify(diagnose(answers)));
  const previous=await readAdminReport({DB},now,new URLSearchParams('consent=previous&minPeople=1'));assert.equal(previous.started,6);assert.equal(previous.filters.minPeople,5);assert.deepEqual(previous.personaCohorts,[]);assert.deepEqual(previous.titles,[]);assert.equal(previous.facets.find(f=>f.id==='lead').strong,null);assert.ok(previous.funnel.every(q=>q.choices.every(n=>n===null)));assert.ok(previous.funnel.every(q=>!Object.keys(q).some(k=>/^[cp]\d$/.test(k))));assert.equal(previous.funnel[0].medianMs,null);
  const expired=await readAdminReport({DB},now,new URLSearchParams('from=2020-01-01&to=2020-02-01'));assert.equal(expired.answerPeriodAvailable,false);assert.equal(expired.started,null);assert.equal(expired.landingVisits,null);
  const guarded={...env,DB,ADMIN_LIMIT:{limit:async()=>({success:true})}};
@@ -80,4 +80,9 @@ test('owner report uses all retained records, including more than 2,000 and olde
 });
 test('date and attribute filters are validated before constructing database queries',()=>{
  for(const query of ['from=2026-02-30','from=2026-11-01&to=2026-10-01','gender=woman%27+OR+1%3D1','age=0','unknown=true','minPeople=0','consent=invalid'])assert.throws(()=>reportFilters(new URLSearchParams(query)));
+});
+
+test('prior detailed-consent records remain selectable without weakening legacy cohort limits',()=>{
+ const prior=reportFilters(new URLSearchParams('instrument=nocturne24-3&consent=prior&minPeople=1'));assert.equal(prior.consentValue,PREVIOUS_CONSENT);assert.equal(prior.minPeople,1);
+ const legacy=reportFilters(new URLSearchParams('consent=previous&minPeople=1'));assert.equal(legacy.consentValue,LEGACY_CONSENT);assert.equal(legacy.minPeople,5);
 });

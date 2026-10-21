@@ -1,6 +1,6 @@
 // Public snapshots and private history use the same disclosure and missing-value rules.
 export function visibleCard(card, nameOnly = false) {
-  return nameOnly ? {...card, quote:'████████', summary:'詳しい好みは、本人だけの秘密。', tags:[], traits:[]} : card;
+  return nameOnly ? {...card, quote:'████████', summary:'詳しい好みは、本人だけの秘密。', tags:[], traits:[], ...(card.v===2?{art:'key'}:{})} : card;
 }
 
 export function facetRate(facet) {

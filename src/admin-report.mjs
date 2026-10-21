@@ -1,7 +1,7 @@
-import {INSTRUMENT,CONSENT,PREVIOUS_CONSENT,SCENES,FACETS,MOODS,AGES,GENDERS} from './nocturne.mjs';
+import {INSTRUMENT,CONSENT,PREVIOUS_CONSENT,LEGACY_CONSENT,SCENES,FACETS,MOODS,AGES,GENDERS} from './nocturne.mjs';
 const DAY=86400000;
-const readPolicy=value=>{if(!['current','previous'].includes(value))throw Error('invalid_filter');return value;};
-const instruments=[INSTRUMENT,'nocturne24-2','nocturne24-1'];
+const readPolicy=value=>{if(!['current','prior','previous'].includes(value))throw Error('invalid_filter');return value;};
+const instruments=[INSTRUMENT,'nocturne24-3','nocturne24-2','nocturne24-1'];
 const bands={morning:'朝',afternoon:'昼',evening:'夕方',night:'深夜',unset:'未回答'};
 export function reportFilters(params=new URLSearchParams(),now=Date.now()){
  const allowed=['from','to','consent','age','gender','mood','timeframe','timeBand','instrument','minPeople','device','source'];
@@ -11,7 +11,7 @@ export function reportFilters(params=new URLSearchParams(),now=Date.now()){
  const from=date('from'),to=date('to'),start=from?Date.parse(from+'T00:00:00+09:00'):0,end=to?Date.parse(to+'T00:00:00+09:00')+DAY:now+1;
  if(start>=end)throw Error('invalid_filter');
  const read=(key,values,fallback='')=>{const v=params.get(key)||fallback;if(v&&!values.includes(v))throw Error('invalid_filter');return v;};
- return {from,to,start,end,consent:policy,consentValue:policy==='current'?CONSENT:PREVIOUS_CONSENT,instrument:read('instrument',instruments,INSTRUMENT),age:read('age',Object.keys(AGES)),gender:read('gender',Object.keys(GENDERS)),mood:read('mood',Object.keys(MOODS)),timeframe:read('timeframe',['recent','now']),timeBand:read('timeBand',Object.keys(bands)),minPeople:Math.max(policy==='current'?1:5,Number(read('minPeople',['1','5'],'1'))),device:read('device',['mobile','desktop']),source:read('source',['direct','search','social','other'])};
+ return {from,to,start,end,consent:policy,consentValue:policy==='current'?CONSENT:policy==='prior'?PREVIOUS_CONSENT:LEGACY_CONSENT,instrument:read('instrument',instruments,INSTRUMENT),age:read('age',Object.keys(AGES)),gender:read('gender',Object.keys(GENDERS)),mood:read('mood',Object.keys(MOODS)),timeframe:read('timeframe',['recent','now']),timeBand:read('timeBand',Object.keys(bands)),minPeople:Math.max(policy==='previous'?5:1,Number(read('minPeople',['1','5'],'1'))),device:read('device',['mobile','desktop']),source:read('source',['direct','search','social','other'])};
 }
 function queryBase(filters){
  const tests=['instrument=?','consent=?','created_at>=?','created_at<?'],args=[filters.instrument,filters.consentValue,filters.start,filters.end];
@@ -24,7 +24,7 @@ function cohortSQL(cte,fields){
 }
 export async function readAdminReport(env,now=Date.now(),params=new URLSearchParams()){
  const filters=reportFilters(params,now),{cte,args}=queryBase(filters),q=sql=>env.DB.prepare(sql).bind(...args);
- const model=filters.instrument===INSTRUMENT?{SCENES,FACETS}:await import(filters.instrument==='nocturne24-1'?'./nocturne-v1.mjs':'./nocturne-v2.mjs');
+ const model=filters.instrument===INSTRUMENT?{SCENES,FACETS}:await import(filters.instrument==='nocturne24-1'?'./nocturne-v1.mjs':filters.instrument==='nocturne24-3'?'./nocturne-v3.mjs':'./nocturne-v2.mjs');
  const activeFacets=model.FACETS,activeScenes=model.SCENES;
  const sceneValues=activeScenes.map(q=>'('+q.id+')').join(',');
  const totals=q(cte+` SELECT COUNT(DISTINCT account_id) people,COUNT(*) started,COUNT(completed_at) completed,COALESCE(SUM(completed_at IS NULL AND last_seen<${now-1800000}),0) possiblyPaused,MIN(created_at) firstRecord,MAX(created_at) lastRecord FROM filtered`);

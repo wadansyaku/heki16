@@ -1,11 +1,14 @@
+import {validArt} from './art.mjs';
+import {diagnose as version3Diagnose,validAnswers as version3ValidAnswers} from './nocturne-v3.mjs';
 import {visibleCard,firstMissingChoice} from './presentation.mjs';
 import {diagnose as version2Diagnose,validAnswers as version2ValidAnswers} from './nocturne-v2.mjs';
 import {diagnose as previousDiagnose,validAnswers as previousValidAnswers} from './nocturne-v1.mjs';
 import {INSTRUMENT,PREVIOUS_INSTRUMENT,CONSENT,PREVIOUS_CONSENT,SCENES,FACETS,MOODS,AGES,GENDERS,PROFILE_OPTIONS,validAnswers,emptyAnswers,diagnose,publicCard,listingCard,validCard,compare} from './nocturne.mjs';
-const supported=[INSTRUMENT,'nocturne24-2',PREVIOUS_INSTRUMENT];
-const modelFor=instrument=>instrument===PREVIOUS_INSTRUMENT?{diagnose:previousDiagnose,validAnswers:previousValidAnswers}:instrument==='nocturne24-2'?{diagnose:version2Diagnose,validAnswers:version2ValidAnswers}:{diagnose,validAnswers};
+const supported=[INSTRUMENT,'nocturne24-3','nocturne24-2',PREVIOUS_INSTRUMENT];
+export const PUBLICATION_POLICY='nocturne-listing-2026-10-21';
+const modelFor=instrument=>instrument===PREVIOUS_INSTRUMENT?{diagnose:previousDiagnose,validAnswers:previousValidAnswers}:instrument==='nocturne24-2'?{diagnose:version2Diagnose,validAnswers:version2ValidAnswers}:instrument==='nocturne24-3'?{diagnose:version3Diagnose,validAnswers:version3ValidAnswers}:{diagnose,validAnswers};
 const DAY=86400000,UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,KEY=/^[A-Za-z0-9_-]{43}$/,ID=/^[A-Za-z0-9_-]{16}$/;
-const paths=new Set(['/api/config','/api/account','/api/blocks','/api/unblock','/api/participate','/api/progress','/api/complete','/api/persona','/api/recovery/create','/api/recovery/login','/api/logout','/api/account/delete','/api/record/delete','/api/share','/api/listings','/api/listing','/api/interest','/api/block','/api/report']);
+const paths=new Set(['/api/config','/api/account','/api/blocks','/api/unblock','/api/participate','/api/progress','/api/complete','/api/persona','/api/recovery/create','/api/recovery/login','/api/logout','/api/account/delete','/api/record/delete','/api/share','/api/shares','/api/art','/api/share/revoke','/api/listing/preview','/api/listing/preference','/api/listings','/api/listing','/api/interest','/api/block','/api/report']);
 const reply=(value,status=200,headers={})=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'",...headers}});
 const hash=async s=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s))),b=>b.toString(16).padStart(2,'0')).join('');
 const random=n=>btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(n)))).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
@@ -23,11 +26,11 @@ async function body(request){
 async function account(request,env,now){
   const token=(request.headers.get('Cookie')||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(cookieName(env)+'='))?.slice(cookieName(env).length+1);
   if(!KEY.test(token||''))return null;
-  return env.DB.prepare('SELECT a.id,a.recovery_hash,s.token_hash,s.created_at AS session_created FROM nocturne_sessions s JOIN nocturne_accounts a ON a.id=s.account_id WHERE s.token_hash=? AND s.expires_at>?').bind(await hash(token),now).first();
+  return env.DB.prepare('SELECT a.id,a.recovery_hash,a.listing_preference,a.listing_revision,a.moderation_hold,s.token_hash,s.created_at AS session_created FROM nocturne_sessions s JOIN nocturne_accounts a ON a.id=s.account_id WHERE s.token_hash=? AND s.expires_at>?').bind(await hash(token),now).first();
 }
 async function record(env,id,owner){return UUID.test(id||'')?env.DB.prepare('SELECT * FROM nocturne_records WHERE id=? AND account_id=?').bind(id,owner).first():null;}
 function presentRecord(row){return {id:row.id,instrument:row.instrument,answers:JSON.parse(row.answers),dwell:JSON.parse(row.dwell),visited:row.visited,cursor:row.cursor,revision:row.revision,context:{timeframe:row.timeframe,mood:row.mood,timeBand:row.time_band},persona:{age:row.age,gender:row.gender},createdAt:row.created_at,completedAt:row.completed_at,profile:row.profile?JSON.parse(row.profile):null};}
-async function latest(env,owner){return env.DB.prepare('SELECT * FROM nocturne_records WHERE account_id=? AND completed_at IS NOT NULL AND instrument IN (?,?,?) ORDER BY completed_at DESC LIMIT 1').bind(owner,...supported).first();}
+async function latest(env,owner){return env.DB.prepare('SELECT * FROM nocturne_records WHERE account_id=? AND completed_at IS NOT NULL AND instrument IN (?,?,?,?) ORDER BY completed_at DESC LIMIT 1').bind(owner,...supported).first();}
 async function verification(b,request,env,verify){return loopback(env)&&new URL(request.url).origin===env.SITE_ORIGIN&&b.token==='local-test-only'||typeof b.token==='string'&&b.token.length<=2048&&await verify(b.token,env);}
 async function makeSession(env,owner,now){const token=random(32);await env.DB.batch([env.DB.prepare('INSERT INTO nocturne_sessions(token_hash,account_id,created_at,expires_at) VALUES(?,?,?,?)').bind(await hash(token),owner,now,now+30*DAY),env.DB.prepare('DELETE FROM nocturne_sessions WHERE account_id=? AND token_hash NOT IN (SELECT token_hash FROM nocturne_sessions WHERE account_id=? ORDER BY created_at DESC LIMIT 10)').bind(owner,owner)]);return token;}
 async function blocked(env,a,b){return !!await env.DB.prepare('SELECT 1 AS blocked FROM nocturne_blocks WHERE (actor=? AND target=?) OR (actor=? AND target=?) LIMIT 1').bind(a,b,b,a).first();}
@@ -38,24 +41,24 @@ export async function handleNocturne(request,env,verify){
   const url=new URL(request.url),path=url.pathname,shareGet=/^\/api\/share\/[A-Za-z0-9_-]{16}$/.test(path);
   if(!paths.has(path)&&!shareGet)return null;
   if(!env.DB||!env.API_LIMIT||!env.GLOBAL_LIMIT)return reply({error:'unavailable'},503);
-  const get=['/api/config','/api/account','/api/listings','/api/blocks'].includes(path)||shareGet;
+  const get=['/api/config','/api/account','/api/listings','/api/blocks','/api/shares'].includes(path)||shareGet;
   if(request.method!==(get?'GET':'POST'))return reply({error:'method'},405);
   if(url.origin!==env.SITE_ORIGIN||request.headers.get('Sec-Fetch-Site')==='cross-site'||!get&&(request.headers.get('Origin')!==env.SITE_ORIGIN||request.headers.get('X-Nocturne')!=='1'))return reply({error:'origin'},403);
   if(env.RECOVERY_MODE&&env.RECOVERY_MODE!=='off')return reply({error:'unavailable'},503);
   const global=await env.GLOBAL_LIMIT.limit({key:'nocturne'}),actor=request.headers.get('CF-Connecting-IP')||'shared';
   if(!global.success||!(await env.API_LIMIT.limit({key:actor+':'+path.replace(/\/[A-Za-z0-9_-]{16}$/,'/:id')})).success)return reply({error:'wait'},429);
   if(path==='/api/config')return reply({localTest:loopback(env),instrument:INSTRUMENT});
-  if(shareGet){const row=await env.DB.prepare('SELECT card FROM nocturne_shares WHERE id=? AND expires_at>?').bind(path.split('/').pop(),Date.now()).first();return row?reply({card:JSON.parse(row.card)}):reply({error:'not_found'},404);}
+  if(shareGet){const row=await env.DB.prepare('SELECT card FROM nocturne_shares WHERE id=? AND expires_at>? AND revoked_at IS NULL').bind(path.split('/').pop(),Date.now()).first();return row?reply({card:JSON.parse(row.card)}):reply({error:'not_found'},404);}
   const now=Date.now();let who=await account(request,env,now),b={};
   if(path!=='/api/recovery/login'&&request.headers.has('X-Nocturne-Scope')&&request.headers.get('X-Nocturne-Scope')!==who?.id)return reply({error:'sign_in'},409);
   if(!get){try{b=await body(request);}catch{return reply({error:'invalid_body'},400);}}
-  if(!get&&env.RESEARCH_ENABLED!=='true'&&!['/api/account/delete','/api/record/delete','/api/logout','/api/block','/api/unblock','/api/report'].includes(path)&&!(path==='/api/listing'&&b.publish===false))return reply({error:'unavailable'},503);
+  if(!get&&env.RESEARCH_ENABLED!=='true'&&!['/api/account/delete','/api/record/delete','/api/logout','/api/share/revoke','/api/listing/preference','/api/block','/api/unblock','/api/report'].includes(path)&&!(path==='/api/listing'&&b.publish===false))return reply({error:'unavailable'},503);
   if(path==='/api/account'){
     if(!who)return reply({signedIn:false});
-    const rows=await env.DB.prepare('SELECT * FROM nocturne_records WHERE account_id=? AND instrument IN (?,?,?) ORDER BY created_at DESC LIMIT 30').bind(who.id,...supported).all();
-    const listing=await env.DB.prepare('SELECT id,card,intent,age,gender,expires_at,hidden FROM nocturne_listings WHERE account_id=?').bind(who.id).first();
+    const rows=await env.DB.prepare('SELECT * FROM nocturne_records WHERE account_id=? AND instrument IN (?,?,?,?) ORDER BY created_at DESC LIMIT 30').bind(who.id,...supported).all();
+    const listing=await env.DB.prepare('SELECT id,card,intent,age,gender,expires_at,hidden,revision,record_id FROM nocturne_listings WHERE account_id=?').bind(who.id).first();
     const mutual=await env.DB.prepare('SELECT p.id,p.card FROM nocturne_interests i JOIN nocturne_interests j ON j.actor=i.target AND j.target=i.actor JOIN nocturne_listings p ON p.account_id=i.target JOIN nocturne_listings own ON own.account_id=i.actor WHERE i.actor=? AND p.hidden=0 AND own.hidden=0 AND i.actor NOT IN (SELECT id FROM nocturne_accounts WHERE moderation_hold=1) AND i.target NOT IN (SELECT id FROM nocturne_accounts WHERE moderation_hold=1) AND p.expires_at>? AND own.expires_at>? AND NOT EXISTS(SELECT 1 FROM nocturne_blocks b WHERE (b.actor=i.actor AND b.target=i.target) OR (b.actor=i.target AND b.target=i.actor)) LIMIT 30').bind(who.id,now,now).all();
-    return reply({signedIn:true,scope:who.id,hasRecovery:!!who.recovery_hash,records:rows.results.map(presentRecord),listing:listing&&listing.expires_at>now?{...listing,card:JSON.parse(listing.card)}:null,mutual:mutual.results.map(r=>({id:r.id,card:JSON.parse(r.card)}))});
+    return reply({signedIn:true,scope:who.id,hasRecovery:!!who.recovery_hash,records:rows.results.map(presentRecord),listing:listing?{...listing,card:JSON.parse(listing.card),status:listing.hidden||who.moderation_hold?'hidden':listing.expires_at<=now?'expired':'live'}:null,publication:{preference:who.listing_preference===null?null:!!who.listing_preference,revision:who.listing_revision,policy:PUBLICATION_POLICY},mutual:mutual.results.map(r=>({id:r.id,card:JSON.parse(r.card)}))});
   }
   if(path==='/api/recovery/login'){
     if(!keys(b,['key','token'])||!KEY.test(b.key||''))return reply({error:'invalid_request'},400);
@@ -106,16 +109,17 @@ export async function handleNocturne(request,env,verify){
     return updated.meta.changes?reply({key}):reply({error:'already_created'},409);
   }
   if(path==='/api/progress'||path==='/api/complete'){
-    if(!keys(b,['id','answers','dwell','visited','cursor','revision'])||!UUID.test(b.id||'')||!validAnswers(b.answers,{complete:path==='/api/complete'})||!Array.isArray(b.dwell)||b.dwell.length!==24||b.dwell.some(v=>!Number.isInteger(v)||v<0||v>1800000)||!Number.isInteger(b.visited)||b.visited<0||b.visited>16777215||!Number.isInteger(b.cursor)||b.cursor<0||b.cursor>=24||!Number.isInteger(b.revision)||b.revision<1||b.revision>10000)return reply({error:'invalid_request'},400);
+    if(!keys(b,['id','answers','dwell','visited','cursor','revision'])||!UUID.test(b.id||'')||!Array.isArray(b.answers)||b.answers.length!==24||!Array.isArray(b.dwell)||b.dwell.length!==24||b.dwell.some(v=>!Number.isInteger(v)||v<0||v>1800000)||!Number.isInteger(b.visited)||b.visited<0||b.visited>16777215||!Number.isInteger(b.cursor)||b.cursor<0||b.cursor>=24||!Number.isInteger(b.revision)||b.revision<1||b.revision>10000)return reply({error:'invalid_request'},400);
     const own=await record(env,b.id,who.id);if(!own)return reply({error:'not_found'},404);
     if(!modelFor(own.instrument).validAnswers(b.answers))return reply({error:'invalid_request'},400);
     if(path==='/api/complete'&&(b.visited!==16777215||b.cursor!==23))return reply({error:'invalid_request'},400);
     if(own.completed_at)return path==='/api/complete'&&own.answers===JSON.stringify(b.answers)?reply({saved:true,profile:JSON.parse(own.profile)}):reply({error:'already_complete'},409);
-    if(b.revision<=own.revision)return reply({saved:true,stale:true});
-    const profile=path==='/api/complete'?modelFor(own.instrument).diagnose(b.answers):null;
-    await env.DB.prepare('UPDATE nocturne_records SET answers=?,dwell=?,visited=?,cursor=?,revision=?,last_seen=?,completed_at=?,profile=? WHERE id=? AND account_id=? AND revision<? AND completed_at IS NULL').bind(JSON.stringify(b.answers),JSON.stringify(b.dwell),b.visited,b.cursor,b.revision,now,profile?now:null,profile?JSON.stringify(profile):null,b.id,who.id,b.revision).run();
+    if(b.revision<=own.revision)return reply({error:'conflict',revision:own.revision},409);
+    const profile=path==='/api/complete'?modelFor(own.instrument).diagnose(b.answers,own.gender):null;
+    const updated=await env.DB.prepare('UPDATE nocturne_records SET answers=?,dwell=?,visited=?,cursor=?,revision=?,last_seen=?,completed_at=?,profile=? WHERE id=? AND account_id=? AND revision<? AND completed_at IS NULL').bind(JSON.stringify(b.answers),JSON.stringify(b.dwell),b.visited,b.cursor,b.revision,now,profile?now:null,profile?JSON.stringify(profile):null,b.id,who.id,b.revision).run();
+    if(!updated.meta?.changes){const stored=await record(env,b.id,who.id);if(path==='/api/complete'&&stored?.completed_at&&stored.answers===JSON.stringify(b.answers))return reply({saved:true,profile:JSON.parse(stored.profile),revision:stored.revision});return reply({error:'conflict',revision:stored?.revision},409);}
     await env.DB.prepare('UPDATE nocturne_accounts SET last_seen=? WHERE id=?').bind(now,who.id).run();
-    return reply({saved:true,...(profile?{profile}:{})});
+    return reply({saved:true,revision:b.revision,...(profile?{profile}:{})});
   }
   if(path==='/api/persona'){
     if(!keys(b,['id','persona'])||!validPersona(b.persona)||!Object.hasOwn(PROFILE_OPTIONS.age,b.persona.age)||!Object.hasOwn(PROFILE_OPTIONS.gender,b.persona.gender))return reply({error:'invalid_request'},400);
@@ -136,25 +140,70 @@ export async function handleNocturne(request,env,verify){
     await env.DB.prepare('DELETE FROM nocturne_records WHERE id=? AND account_id=?').bind(b.id,who.id).run();return reply({deleted:true});
   }
   if(path==='/api/share'){
-    if(!keys(b,['id','tags','personal','nameOnly'])||b.nameOnly!==undefined&&typeof b.nameOnly!=='boolean'||!UUID.test(b.id||'')||!Array.isArray(b.tags)||b.tags.length>3||b.tags.some(s=>typeof s!=='string'||!s.trim()||s.length>24||/[<>\u0000-\u001f]/.test(s))||b.personal!==undefined&&(typeof b.personal!=='string'||b.personal.length>160||/[<>\u0000-\u001f]/.test(b.personal)))return reply({error:'invalid_request'},400);
+    if(!keys(b,['id','tags','personal','nameOnly','art'])||b.art!==undefined&&!validArt(b.art)||b.nameOnly!==undefined&&typeof b.nameOnly!=='boolean'||!UUID.test(b.id||'')||!Array.isArray(b.tags)||b.tags.length>3||b.tags.some(s=>typeof s!=='string'||!s.trim()||s.length>24||/[<>\u0000-\u001f]/.test(s))||b.personal!==undefined&&(typeof b.personal!=='string'||b.personal.length>160||/[<>\u0000-\u001f]/.test(b.personal)))return reply({error:'invalid_request'},400);
     const own=await record(env,b.id,who.id);if(!own?.profile)return reply({error:'not_found'},404);
-    const card=visibleCard(publicCard(JSON.parse(own.profile),b.tags.map(t=>t.trim()),b.personal?.trim()),b.nameOnly===true);if(!validCard(card))return reply({error:'invalid_request'},400);
-    const encoded=JSON.stringify(card),digest=await hash(encoded),saved=await env.DB.prepare('SELECT id FROM nocturne_shares WHERE account_id=? AND digest=? AND expires_at>?').bind(who.id,digest,now).first();
+    const card=visibleCard(publicCard(JSON.parse(own.profile),b.tags.map(t=>t.trim()),b.personal?.trim(),b.art),b.nameOnly===true);if(!validCard(card))return reply({error:'invalid_request'},400);
+    const encoded=JSON.stringify(card),digest=await hash(encoded),saved=await env.DB.prepare('SELECT id FROM nocturne_shares WHERE account_id=? AND digest=? AND expires_at>? AND revoked_at IS NULL').bind(who.id,digest,now).first();
     if(saved)return reply({url:(env.PUBLIC_SITE_ORIGIN||env.SITE_ORIGIN)+'/s/'+saved.id});
-    const id=random(12);await env.DB.prepare('DELETE FROM nocturne_shares WHERE account_id=? AND digest=? AND expires_at<=?').bind(who.id,digest,now).run();
+    const id=random(12);await env.DB.prepare('DELETE FROM nocturne_shares WHERE account_id=? AND digest=? AND (expires_at<=? OR revoked_at IS NOT NULL)').bind(who.id,digest,now).run();
     await env.DB.prepare('INSERT INTO nocturne_shares(id,account_id,digest,card,created_at,expires_at) VALUES(?,?,?,?,?,?)').bind(id,who.id,digest,encoded,now,now+90*DAY).run();return reply({url:(env.PUBLIC_SITE_ORIGIN||env.SITE_ORIGIN)+'/s/'+id},201);
   }
-  if(path==='/api/listing'){
-    if(!keys(b,['publish','recordId','intent','showAge','showGender'])||typeof b.publish!=='boolean')return reply({error:'invalid_request'},400);
-    if(!b.publish){await env.DB.batch([env.DB.prepare('DELETE FROM nocturne_listings WHERE account_id=?').bind(who.id),env.DB.prepare('DELETE FROM nocturne_interests WHERE actor=? OR target=?').bind(who.id,who.id)]);return reply({published:false});}
-    if(!['similar','complement','any'].includes(b.intent)||typeof b.showAge!=='boolean'||typeof b.showGender!=='boolean')return reply({error:'invalid_request'},400);
-    const own=await record(env,b.recordId,who.id);if(!own?.profile||JSON.parse(own.profile).answered<12)return reply({error:'complete_first'},409);
-    const id=random(12),card=JSON.stringify(listingCard(JSON.parse(own.profile)));
-    const old=await env.DB.prepare('SELECT hidden FROM nocturne_listings WHERE account_id=?').bind(who.id).first();const reports=await env.DB.prepare('SELECT COUNT(*) AS n FROM nocturne_reports WHERE target=?').bind(who.id).first('n');const held=await env.DB.prepare('SELECT moderation_hold FROM nocturne_accounts WHERE id=?').bind(who.id).first('moderation_hold');if(old?.hidden||held||reports>=3)return reply({error:'review_pending'},403);
-    await env.DB.batch([
-      env.DB.prepare('DELETE FROM nocturne_interests WHERE actor=? OR target=?').bind(who.id,who.id),
-      env.DB.prepare('INSERT INTO nocturne_listings(id,account_id,card,intent,age,gender,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET id=excluded.id,card=excluded.card,intent=excluded.intent,age=excluded.age,gender=excluded.gender,created_at=excluded.created_at,expires_at=excluded.expires_at').bind(id,who.id,card,b.intent,b.showAge?own.age:'unset',b.showGender?own.gender:'unset',now,now+7*DAY)
-    ]);return reply({published:true,id},201);
+  if(path==='/api/art'){
+    if(!keys(b,['id','art'])||!UUID.test(b.id||'')||!validArt(b.art))return reply({error:'invalid_request'},400);
+    const own=await record(env,b.id,who.id);if(!own?.profile)return reply({error:'not_found'},404);
+    await env.DB.prepare("UPDATE nocturne_records SET profile=json_set(profile,'$.art',?) WHERE id=? AND account_id=? AND completed_at IS NOT NULL").bind(b.art,b.id,who.id).run();return reply({saved:true,art:b.art});
+  }
+  if(path==='/api/shares'){
+    const rows=await env.DB.prepare('SELECT id,card,created_at,expires_at,revoked_at FROM nocturne_shares WHERE account_id=? ORDER BY created_at DESC LIMIT 30').bind(who.id).all();
+    return reply({items:rows.results.map(r=>({...r,card:JSON.parse(r.card)}))});
+  }
+  if(path==='/api/share/revoke'){
+    if(!keys(b,['id'])||!ID.test(b.id||''))return reply({error:'invalid_request'},400);
+    const own=await env.DB.prepare('SELECT id FROM nocturne_shares WHERE id=? AND account_id=?').bind(b.id,who.id).first();if(!own)return reply({error:'not_found'},404);
+    if(!env.EVIDENCE)return reply({error:'unavailable'},503);
+    await env.EVIDENCE.put('nocturne-share-withdrawals/'+b.id+'.json',JSON.stringify({deletedAt:now}));
+    await env.DB.prepare('UPDATE nocturne_shares SET revoked_at=? WHERE id=? AND account_id=?').bind(now,b.id,who.id).run();return reply({revoked:true});
+  }
+  if(path==='/api/listing/preference'){
+    if(!keys(b,['enabled','expectedRevision'])||typeof b.enabled!=='boolean'||!Number.isInteger(b.expectedRevision))return reply({error:'invalid_request'},400);
+    const updated=await env.DB.prepare('UPDATE nocturne_accounts SET listing_preference=?,listing_revision=listing_revision+1 WHERE id=? AND listing_revision=?').bind(Number(b.enabled),who.id,b.expectedRevision).run();
+    return updated.meta?.changes?reply({saved:true,revision:b.expectedRevision+1,preference:b.enabled}):reply({error:'conflict'},409);
+  }
+  if(path==='/api/listing'&&b.publish===false){
+    if(!keys(b,['publish','expectedRevision'])||b.expectedRevision!==undefined&&!Number.isInteger(b.expectedRevision))return reply({error:'invalid_request'},400);
+    const expected=b.expectedRevision??who.listing_revision;
+    const results=await env.DB.batch([
+      env.DB.prepare('UPDATE nocturne_accounts SET listing_preference=0,listing_revision=listing_revision+1 WHERE id=? AND listing_revision=?').bind(who.id,expected),
+      env.DB.prepare('DELETE FROM nocturne_listings WHERE account_id=? AND changes()=1').bind(who.id),
+      env.DB.prepare('DELETE FROM nocturne_interests WHERE (actor=? OR target=?) AND changes()=1').bind(who.id,who.id)
+    ]);
+    if(!results[0].meta?.changes)return reply({error:'conflict'},409);
+    return reply({published:false,revision:expected+1});
+  }
+  if(path==='/api/listing'||path==='/api/listing/preview'){
+    if(!keys(b,['publish','recordId','intent','showAge','showGender','art','digest','policy','expectedRevision'])||path==='/api/listing'&&b.publish!==true||!['similar','complement','any'].includes(b.intent)||typeof b.showAge!=='boolean'||typeof b.showGender!=='boolean'||b.art!==undefined&&!validArt(b.art))return reply({error:'invalid_request'},400);
+    const own=await record(env,b.recordId,who.id);if(!own?.completed_at||!own.profile||JSON.parse(own.profile).answered<12)return reply({error:'complete_first'},409);
+    const old=await env.DB.prepare('SELECT * FROM nocturne_listings WHERE account_id=?').bind(who.id).first();
+    const reports=await env.DB.prepare('SELECT COUNT(*) AS n FROM nocturne_reports WHERE target=?').bind(who.id).first('n');
+    const held=await env.DB.prepare('SELECT moderation_hold FROM nocturne_accounts WHERE id=?').bind(who.id).first('moderation_hold');if(old?.hidden||held||reports>=3)return reply({error:'review_pending'},403);
+    const card=listingCard(JSON.parse(own.profile),b.art),age=b.showAge?own.age:'unset',gender=b.showGender?own.gender:'unset';
+    const digest=await hash(JSON.stringify({card,intent:b.intent,age,gender}));
+    if(path==='/api/listing/preview')return reply({card,intent:b.intent,age,gender,digest,policy:PUBLICATION_POLICY,revision:who.listing_revision});
+    if(b.policy!==PUBLICATION_POLICY||b.digest!==digest||!Number.isInteger(b.expectedRevision))return reply({error:'conflict'},409);
+    const priorReceipt=async()=>env.DB.prepare('SELECT p.id,p.card,p.revision,p.expires_at FROM nocturne_listings p JOIN nocturne_accounts a ON a.id=p.account_id JOIN nocturne_publication_consents c ON c.account_id=a.id AND c.revision=p.revision WHERE a.id=? AND a.listing_revision=? AND p.revision=? AND c.digest=? AND p.hidden=0 AND p.expires_at>?').bind(who.id,b.expectedRevision+1,b.expectedRevision+1,digest,now).first();
+    const prior=await priorReceipt();if(prior)return reply({published:true,id:prior.id,card:JSON.parse(prior.card),revision:prior.revision,expiresAt:prior.expires_at,reused:true});
+    if(b.expectedRevision!==who.listing_revision)return reply({error:'conflict'},409);
+    const id=old?.id||random(12),revision=who.listing_revision+1;
+    const semantic=c=>JSON.stringify({...c,art:undefined,artVersion:undefined});
+    const changed=old&&(semantic(JSON.parse(old.card))!==semantic(card)||old.age!==age||old.gender!==gender||old.intent!==b.intent);
+    const results=await env.DB.batch([
+      env.DB.prepare('UPDATE nocturne_accounts SET listing_preference=1,listing_revision=listing_revision+1 WHERE id=? AND listing_revision=? AND moderation_hold=0').bind(who.id,b.expectedRevision),
+      env.DB.prepare('INSERT INTO nocturne_listings(id,account_id,card,intent,age,gender,created_at,expires_at,revision,record_id) SELECT ?,?,?,?,?,?,?,?,?,? WHERE changes()=1 ON CONFLICT(account_id) DO UPDATE SET card=excluded.card,intent=excluded.intent,age=excluded.age,gender=excluded.gender,expires_at=excluded.expires_at,revision=excluded.revision,record_id=excluded.record_id').bind(id,who.id,JSON.stringify(card),b.intent,age,gender,old?.created_at||now,now+7*DAY,revision,b.recordId),
+      env.DB.prepare('INSERT INTO nocturne_publication_consents(account_id,revision,policy,digest,created_at) SELECT ?,?,?,?,? WHERE changes()=1').bind(who.id,revision,PUBLICATION_POLICY,digest,now),
+      env.DB.prepare('DELETE FROM nocturne_interests WHERE ?=1 AND changes()=1 AND (actor=? OR target=?) AND EXISTS(SELECT 1 FROM nocturne_publication_consents WHERE account_id=? AND revision=?)').bind(Number(!!changed),who.id,who.id,who.id,revision)
+    ]);
+    if(!results[0].meta?.changes){const saved=await priorReceipt();return saved?reply({published:true,id:saved.id,card:JSON.parse(saved.card),revision:saved.revision,expiresAt:saved.expires_at,reused:true}):reply({error:'conflict'},409);}
+    return reply({published:true,id,card,revision,expiresAt:now+7*DAY},201);
   }
   if(path==='/api/listings'){
     const own=await latest(env,who.id);if(!own||JSON.parse(own.profile).answered<12)return reply({error:'complete_first'},409);
@@ -201,7 +250,7 @@ export async function serveShortShare(request,env){
   if(!ID.test(id)||!['GET','HEAD'].includes(request.method))return new Response('Not found',{status:404,headers:{'Cache-Control':'no-store','X-Robots-Tag':'noindex'}});
   if(!env.DB||!env.API_LIMIT||!env.GLOBAL_LIMIT||env.RECOVERY_MODE&&env.RECOVERY_MODE!=='off')return new Response('Unavailable',{status:503,headers:{'Cache-Control':'no-store','X-Robots-Tag':'noindex'}});
   const limits=await Promise.all([env.GLOBAL_LIMIT.limit({key:'nocturne-share'}),env.API_LIMIT.limit({key:(request.headers.get('CF-Connecting-IP')||'shared')+':share-read'})]);if(limits.some(x=>!x.success))return new Response('Try later',{status:429,headers:{'Cache-Control':'no-store','X-Robots-Tag':'noindex'}});
-  const row=await env.DB.prepare('SELECT card FROM nocturne_shares WHERE id=? AND expires_at>?').bind(id,Date.now()).first();
+  const row=await env.DB.prepare('SELECT card FROM nocturne_shares WHERE id=? AND expires_at>? AND revoked_at IS NULL').bind(id,Date.now()).first();
   if(!row)return new Response('この共有結果は期限が切れたか、取り消されました。',{status:404,headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store','X-Robots-Tag':'noindex'}});
   const card=JSON.parse(row.card);if(!validCard(card))return new Response('Unavailable',{status:503});
   const asset=await env.ASSETS.fetch(new Request(url.origin+'/',{headers:request.headers}));let html=await asset.text();
@@ -230,9 +279,9 @@ export function aggregateUsage(rows,now=Date.now()){
   return {instrument:INSTRUMENT,updatedAt:new Date(now).toISOString(),scope:'consenting-sessions-only',window:'latest-2000-within-7-days',landingVisits:null,people:people.size,started:valid.length,completed:completed.length,possiblyPaused:inactive.length,funnel,cohorts,personaCohorts:grouped(['gender','age']).rows,timeCohorts:grouped(['timeframe','mood','time_band']).rows,suppressedCohorts:detailed.size-cohorts.length};
 }
 async function replayWithdrawals(env){
-  for(const [prefix,table] of [['nocturne-withdrawals/','nocturne_accounts'],['nocturne-record-withdrawals/','nocturne_records']]){
+  for(const [prefix,table] of [['nocturne-withdrawals/','nocturne_accounts'],['nocturne-record-withdrawals/','nocturne_records'],['nocturne-share-withdrawals/','nocturne_shares']]){
     const checkpoint='nocturne-recovery/'+env.RECOVERY_MODE+'/'+table+'.json',old=await env.EVIDENCE.get(checkpoint),saved=old?await old.json():{};if(saved.done)continue;
-    const page=await env.EVIDENCE.list({prefix,limit:500,...(saved.cursor?{cursor:saved.cursor}:{})});const ids=page.objects.map(o=>o.key.slice(prefix.length,-5)).filter(id=>UUID.test(id));
+    const page=await env.EVIDENCE.list({prefix,limit:500,...(saved.cursor?{cursor:saved.cursor}:{})});const ids=page.objects.map(o=>o.key.slice(prefix.length,-5)).filter(id=>(table==='nocturne_shares'?ID:UUID).test(id));
     for(let i=0;i<ids.length;i+=80){const chunk=ids.slice(i,i+80);await env.DB.prepare('DELETE FROM '+table+' WHERE id IN ('+chunk.map(()=>'?').join(',')+')').bind(...chunk).run();}
     await env.EVIDENCE.put(checkpoint,JSON.stringify({done:!page.truncated,cursor:page.truncated?page.cursor:null}));
   }
@@ -242,7 +291,7 @@ export async function maintainNocturne(env,now=Date.now()){
   if(env.RECOVERY_MODE&&env.RECOVERY_MODE!=='off'){if(!UUID.test(env.RECOVERY_MODE))throw Error('invalid_recovery');await env.EVIDENCE.delete('owner/nocturne-current.json');await replayWithdrawals(env);return;}
   try{
     await env.DB.batch([
-      env.DB.prepare('DELETE FROM nocturne_sessions WHERE expires_at<=?').bind(now),env.DB.prepare('DELETE FROM nocturne_shares WHERE expires_at<=?').bind(now),env.DB.prepare('DELETE FROM nocturne_listings WHERE expires_at<=?').bind(now),
+      env.DB.prepare('DELETE FROM nocturne_sessions WHERE expires_at<=?').bind(now),env.DB.prepare('DELETE FROM nocturne_shares WHERE expires_at<=?').bind(now),env.DB.prepare('DELETE FROM nocturne_listings WHERE expires_at<=?').bind(now-30*DAY),
       env.DB.prepare('DELETE FROM nocturne_records WHERE created_at<? OR (completed_at IS NULL AND last_seen<?)').bind(now-180*DAY,now-30*DAY),env.DB.prepare('DELETE FROM nocturne_accounts WHERE last_seen<?').bind(now-365*DAY),env.DB.prepare('DELETE FROM nocturne_quota WHERE day<?').bind(new Date(now-30*DAY).toISOString().slice(0,10))
     ]);
     const rows=await env.DB.prepare('SELECT account_id,instrument,consent,answers,dwell,visited,cursor,timeframe,mood,age,gender,time_band,created_at,last_seen,completed_at,profile FROM nocturne_records WHERE created_at>=? AND instrument=? ORDER BY created_at DESC LIMIT 2000').bind(now-7*DAY,INSTRUMENT).all();
