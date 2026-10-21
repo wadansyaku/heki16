@@ -1,7 +1,7 @@
 const fs=require('node:fs'),path=require('node:path');
 const {execFileSync}=require('node:child_process');
 const {escapeHtml:esc,validateMonetization,renderAffiliateSection,affiliateCss}=require('./monetization.cjs');
-const root=path.resolve(__dirname,'..'),dist=path.join(root,'dist'),origin='https://nocturne.aiyume.workers.dev';
+const root=path.resolve(__dirname,'..'),dist=path.join(root,'dist'),origin='https://nocturne.ai-yu-me.com';
 for(const file of ['app.mjs','content.mjs','diagnosis.mjs','tags.mjs','profile.mjs','share-compat.mjs','share-v5.mjs','nocturne.mjs','nocturne-v1.mjs','nocturne-v2.mjs','presentation.mjs','vault.mjs','metrics.mjs','affiliate-core.mjs','affiliate-client.mjs'])execFileSync(process.execPath,['--check',path.join(root,'src',file)],{stdio:'pipe'});
 const {TYPES,FACETS}=JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',"import {TYPES} from './src/content.mjs';import {FACETS} from './src/nocturne.mjs';console.log(JSON.stringify({TYPES,FACETS}));"],{cwd:root,encoding:'utf8'}));
 const campaigns=validateMonetization(JSON.parse(fs.readFileSync(path.join(root,'config/monetization.json'),'utf8')),Date.now(),FACETS.map(f=>f.id));

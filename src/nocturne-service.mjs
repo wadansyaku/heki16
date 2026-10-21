@@ -140,9 +140,9 @@ export async function handleNocturne(request,env,verify){
     const own=await record(env,b.id,who.id);if(!own?.profile)return reply({error:'not_found'},404);
     const card=visibleCard(publicCard(JSON.parse(own.profile),b.tags.map(t=>t.trim()),b.personal?.trim()),b.nameOnly===true);if(!validCard(card))return reply({error:'invalid_request'},400);
     const encoded=JSON.stringify(card),digest=await hash(encoded),saved=await env.DB.prepare('SELECT id FROM nocturne_shares WHERE account_id=? AND digest=? AND expires_at>?').bind(who.id,digest,now).first();
-    if(saved)return reply({url:env.SITE_ORIGIN+'/s/'+saved.id});
+    if(saved)return reply({url:(env.PUBLIC_SITE_ORIGIN||env.SITE_ORIGIN)+'/s/'+saved.id});
     const id=random(12);await env.DB.prepare('DELETE FROM nocturne_shares WHERE account_id=? AND digest=? AND expires_at<=?').bind(who.id,digest,now).run();
-    await env.DB.prepare('INSERT INTO nocturne_shares(id,account_id,digest,card,created_at,expires_at) VALUES(?,?,?,?,?,?)').bind(id,who.id,digest,encoded,now,now+90*DAY).run();return reply({url:env.SITE_ORIGIN+'/s/'+id},201);
+    await env.DB.prepare('INSERT INTO nocturne_shares(id,account_id,digest,card,created_at,expires_at) VALUES(?,?,?,?,?,?)').bind(id,who.id,digest,encoded,now,now+90*DAY).run();return reply({url:(env.PUBLIC_SITE_ORIGIN||env.SITE_ORIGIN)+'/s/'+id},201);
   }
   if(path==='/api/listing'){
     if(!keys(b,['publish','recordId','intent','showAge','showGender'])||typeof b.publish!=='boolean')return reply({error:'invalid_request'},400);

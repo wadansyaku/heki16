@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
-import {handleApi,validateSubmission,verifyTurnstile,readBody,qualityReport,runMaintenance} from '../src/worker.mjs';
+import worker,{handleApi,validateSubmission,verifyTurnstile,readBody,qualityReport,runMaintenance} from '../src/worker.mjs';
 import {INSTRUMENT,CONSENT} from '../src/diagnosis.mjs';
 class DB {
  constructor(){this.db=new DatabaseSync(':memory:');for(const f of fs.readdirSync('migrations').sort())this.db.exec(fs.readFileSync('migrations/'+f,'utf8'));}
@@ -15,6 +15,18 @@ function environment(){return {DB:new DB(),EVIDENCE:new R2(),SITE_ORIGIN:base,TU
 function submission(){return {id:crypto.randomUUID(),deletionToken:Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url'),token:'test-token',instrument:INSTRUMENT,consent:CONSENT,adult:true,mode:40,answers:Array.from({length:40},(_,i)=>i%5),groups:[1,2,3,4]};}
 const req=(path,body,origin=base)=>new Request(base+path,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json',Origin:origin}:{},body:body?JSON.stringify(body):undefined});
 const hash=async t=>Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t))).toString('hex');
+test('custom domain preserves legacy sessions while each host rejects the other host origin',async()=>{
+ const current='https://nocturne.ai-yu-me.com',legacy='https://nocturne.aiyume.workers.dev';
+ const env={...environment(),SITE_ORIGIN:current,LEGACY_SITE_ORIGIN:legacy};
+ for(const host of [current,legacy]){
+  assert.deepEqual(await (await worker.fetch(new Request(host+'/api/account'),env)).json(),{signedIn:false});
+  const request=origin=>new Request(host+'/api/participate',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin,'X-Nocturne':'1'},body:'{}'});
+  assert.equal((await worker.fetch(request(host),env)).status,400);
+  assert.equal((await worker.fetch(request(host===current?legacy:current),env)).status,403);
+ }
+ assert.equal(env.SITE_ORIGIN,current);
+ assert.equal((await worker.fetch(new Request('https://unknown.example/api/account'),env)).status,403);
+});
 async function insert(env,b,time=Date.now()){await env.DB.prepare('INSERT INTO diagnosis_submissions VALUES(?,?,?,?,?,?,?,?,?)').bind(b.id,await hash(b.deletionToken),b.instrument,b.consent,b.mode,JSON.stringify(b.answers),JSON.stringify(b.groups),time,new Date(time).toISOString().slice(0,10)).run();}
 test('submission requires adult consent, exact instrument and numeric data only',()=>{const b=submission();assert.ok(validateSubmission(b));for(const patch of [{adult:false},{consent:'old'},{answers:Array(40).fill(null)},{groups:[25,0,0,0]},{nickname:'should never be sent'},{tags:['private']},{token:''}])assert.equal(validateSubmission({...b,...patch}),false);});
 test('request reader enforces content type and streaming body limit',async()=>{await assert.rejects(readBody(new Request(base,{method:'POST',body:'x'})));await assert.rejects(readBody(req('/',{huge:'x'.repeat(5000)})));assert.deepEqual(await readBody(req('/',{ok:true})),{ok:true});});
