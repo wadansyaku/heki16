@@ -1,0 +1,13 @@
+const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{spawn}=require('node:child_process');
+const root=path.resolve(__dirname,'..'),port=Number(process.env.KUSEIRO_PREVIEW_PORT||process.env.NOCTURNE_PREVIEW_PORT||8778);
+if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid preview port');
+const folder=fs.mkdtempSync(path.join(os.tmpdir(),'nocturne-preview-')),file=path.join(folder,'wrangler.json');
+const config=JSON.parse(fs.readFileSync(path.join(root,'wrangler.jsonc'),'utf8'));
+config.main=path.join(root,config.main);config.assets.directory=path.join(root,config.assets.directory);config.routes=[];
+config.vars={...config.vars,SITE_ORIGIN:`http://127.0.0.1:${port}`,LOCAL_TEST_MODE:'true'};
+for(const db of config.d1_databases)db.migrations_dir=path.join(root,db.migrations_dir);
+fs.writeFileSync(file,JSON.stringify(config),{mode:0o600});
+const persist=process.env.KUSEIRO_PREVIEW_STATE||process.env.NOCTURNE_PREVIEW_STATE||path.join(root,'.wrangler','state');
+const child=spawn(process.execPath,[path.join(root,'node_modules/wrangler/bin/wrangler.js'),'dev','--config',file,'--ip','127.0.0.1','--port',String(port),'--persist-to',persist],{cwd:root,stdio:'inherit'});
+for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>child.kill(signal));
+child.on('exit',code=>{fs.rmSync(folder,{recursive:true,force:true});process.exitCode=code||0;});

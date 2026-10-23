@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {AD_CONSENT,adConsentApplies,selectPromotions} from '../src/affiliate-core.mjs';
+import {AD_CONSENT,adConsentApplies,matchedAffinityLabels,selectPromotions} from '../src/affiliate-core.mjs';
 import {handleMetrics} from '../src/metrics-service.mjs';
 import {readAdminReport} from '../src/admin-report.mjs';
 import {D1} from './fixtures/d1.mjs';
@@ -14,11 +14,19 @@ test('advertising needs a separate, current, result-specific choice; research co
  for(const changed of [{recordId:'other-account-record'},{version:'old'},{acceptedAt:now+1},{acceptedAt:now-30*86400000},{acceptedAt:'today'}])assert.equal(adConsentApplies({...consent,...changed},'this-record',now),false);
 });
 test('only explicit choice enables local ranking; demographics, boundaries, unknown desires and history cannot alter it',()=>{
- const profile={facets:[{id:'lead',strong:true},{id:'yield',strong:false}],gender:'man',age:'20-24',history:['yield'],tags:['yield']};
+ const profile={facets:[{id:'lead',strong:true,label:'主導したい'},{id:'yield',strong:false,label:'委ねたい'}],gender:'man',age:'20-24',history:['yield'],tags:['yield']};
  assert.deepEqual(selectPromotions(offers,{...profile,consented:false},now).map(c=>c.id),['generic','other','selected']);
- assert.deepEqual(selectPromotions(offers,{...profile,consented:true},now).map(c=>c.id),['selected','generic','other']);
- assert.deepEqual(selectPromotions(offers,{facets:[],consented:true},now).map(c=>c.id),['generic','other','selected']);
+ assert.deepEqual(selectPromotions(offers,{...profile,consented:true},now).map(c=>c.id),['selected','generic']);
+ assert.deepEqual(selectPromotions(offers,{facets:[],consented:true},now).map(c=>c.id),['generic']);
+ assert.deepEqual(selectPromotions(offers,{consented:true,facets:[{id:'lead',strong:false,label:'主導したい'}]},now).map(c=>c.id),['generic']);
+ const ranked=[{id:'one',affinities:['lead'],expiresAt:'2027-01-01'},{id:'two',affinities:['lead','voice'],expiresAt:'2027-01-01'},{id:'general',affinities:[],expiresAt:'2027-01-01'},{id:'miss',affinities:['yield'],expiresAt:'2027-01-01'}];
+ const strong=[{id:'lead',strong:true,label:'主導したい'},{id:'voice',strong:true,label:'声に惹かれる'}];
+ assert.deepEqual(selectPromotions(ranked,{consented:true,facets:strong},now).map(c=>c.id),['two','one','general']);
+ assert.deepEqual(selectPromotions(ranked,{consented:false,facets:strong,gender:'man',age:'20-24'},now).map(c=>c.id),['one','two','general']);
  assert.deepEqual(selectPromotions(offers,{},Date.parse('2028-01-01')),[]);
+ assert.deepEqual(selectPromotions([{...offers[0],placements:['post-share']},{...offers[2],placements:['post-result']}],{placement:'post-result',consented:true,facets:profile.facets},now).map(c=>c.id),['selected']);
+ assert.deepEqual(matchedAffinityLabels(offers[2],profile.facets),['主導したい']);
+ assert.deepEqual(matchedAffinityLabels(offers[2],[{id:'lead',strong:false,label:'主導したい'}]),[]);
 });
 test('PR click counts are anonymous, deduplicated and available to the owner without campaign or answer linkage',async()=>{
  const origin='https://nocturne.example',DB=new D1(),env={DB,SITE_ORIGIN:origin,METRIC_LIMIT:{limit:async()=>({success:true})}},body={session:crypto.randomUUID(),events:['visit','pr_open','pr_click'],source:'direct',device:'mobile'};

@@ -5,17 +5,34 @@ import {DatabaseSync} from 'node:sqlite';
 import {handleNocturne,serveShortShare,maintainNocturne,aggregateUsage} from '../src/nocturne-service.mjs';
 import {SCENES,CONSENT,PREVIOUS_CONSENT,INSTRUMENT,diagnose,emptyAnswers} from '../src/nocturne.mjs';
 import {diagnose as previousDiagnose} from '../src/nocturne-v1.mjs';
+import {CHOICE_POLICY,REQUIRED_ENTRY_POLICY} from '../src/consent.mjs';
 class DB{
- constructor(){this.db=new DatabaseSync(':memory:');this.db.exec(fs.readFileSync('migrations/0005_nocturne.sql','utf8'));this.db.exec(fs.readFileSync('migrations/0006_nocturne_moderation.sql','utf8'));this.db.exec(fs.readFileSync('migrations/0008_nocturne_publication.sql','utf8'));}
+ constructor(){this.db=new DatabaseSync(':memory:');this.db.exec(fs.readFileSync('migrations/0005_nocturne.sql','utf8'));this.db.exec(fs.readFileSync('migrations/0006_nocturne_moderation.sql','utf8'));this.db.exec(fs.readFileSync('migrations/0008_nocturne_publication.sql','utf8'));this.db.exec(fs.readFileSync('migrations/0009_explicit_choices_and_delivery.sql','utf8'));this.db.exec(fs.readFileSync('migrations/0010_required_participation.sql','utf8'));}
  prepare(sql){const db=this.db;return {args:[],bind(...args){this.args=args;return this;},async first(key){const r=db.prepare(sql).get(...this.args);return key?r?.[key]:r||null;},async all(){const before=Number(db.prepare('SELECT total_changes() AS n').get().n),rows=db.prepare(sql).all(...this.args);return {results:rows,meta:{changes:Number(db.prepare('SELECT total_changes() AS n').get().n)-before}};},async run(){const before=Number(db.prepare('SELECT total_changes() AS n').get().n);db.prepare(sql).run(...this.args);return {success:true,meta:{changes:Number(db.prepare('SELECT total_changes() AS n').get().n)-before},results:[]};}};}
  async batch(list){this.db.exec('BEGIN');try{const out=[];for(const q of list)out.push(await q.all());this.db.exec('COMMIT');return out;}catch(e){this.db.exec('ROLLBACK');throw e;}}
 }
 class R2{constructor(){this.files=new Map();}async put(k,v){this.files.set(k,v);}async get(k){const v=this.files.get(k);return v===undefined?null:{json:async()=>JSON.parse(v)};}async delete(k){this.files.delete(k);}async list({prefix,limit=500,cursor}){const keys=[...this.files.keys()].filter(k=>k.startsWith(prefix)).sort(),i=Number(cursor)||0;return {objects:keys.slice(i,i+limit).map(key=>({key})),truncated:i+limit<keys.length,cursor:String(i+limit)};}}
 const base='https://nocturne.test',verify=async token=>token==='verified-test';
-const environment=()=>({DB:new DB(),EVIDENCE:new R2(),SITE_ORIGIN:base,RESEARCH_ENABLED:'true',API_LIMIT:{limit:async()=>({success:true})},GLOBAL_LIMIT:{limit:async()=>({success:true})},ASSETS:{fetch:async()=>new Response('<html><head><title>NOCTURNE</title><meta name="robots" content="index, follow"></head><body></body></html>',{headers:{'Content-Type':'text/html','Content-Security-Policy':"script-src 'self'"}})}});
+const environment=()=>({DB:new DB(),EVIDENCE:new R2(),SITE_ORIGIN:base,RESEARCH_ENABLED:'true',API_LIMIT:{limit:async()=>({success:true})},GLOBAL_LIMIT:{limit:async()=>({success:true})},ASSETS:{fetch:async()=>new Response('<html><head><title>KUSEIRO</title><meta name="robots" content="index, follow"></head><body></body></html>',{headers:{'Content-Type':'text/html','Content-Security-Policy':"script-src 'self'"}})}});
 const request=(path,b,cookie='',origin=base)=>new Request(base+path,{method:b===undefined?'GET':'POST',headers:{...(cookie?{Cookie:cookie}:{}),...(b===undefined?{}:{'Content-Type':'application/json',Origin:origin,'X-Nocturne':'1'})},...(b===undefined?{}:{body:JSON.stringify(b)})});
 const call=(env,path,b,cookie)=>handleNocturne(request(path,b,cookie),env,verify);
 const startBody=()=>({id:crypto.randomUUID(),instrument:INSTRUMENT,consent:CONSENT,adult:true,context:{timeframe:'recent',mood:'ordinary',timeBand:'night'},persona:{age:'20-24',gender:'diverse'},token:'verified-test'});
+test('new explicit attestations are recorded while older consent remains unknown and revocable',async()=>{
+ const e=environment(),b={...startBody(),choicePolicy:CHOICE_POLICY};
+ const r=await call(e,'/api/participate',b),cookie=r.headers.get('set-cookie').split(';')[0];
+ assert.equal(r.status,201);assert.equal(await e.DB.prepare('SELECT choice_policy FROM nocturne_records WHERE id=?').bind(b.id).first('choice_policy'),CHOICE_POLICY);
+ const older=startBody();assert.equal((await call(e,'/api/participate',older,cookie)).status,201);
+ assert.equal(await e.DB.prepare('SELECT choice_policy FROM nocturne_records WHERE id=?').bind(older.id).first('choice_policy'),null);
+ assert.equal((await call(e,'/api/participate',{...startBody(),choicePolicy:'unknown'},cookie)).status,400);
+ assert.equal((await call(e,'/api/participate',{...startBody(),adult:false,choicePolicy:CHOICE_POLICY},cookie)).status,400);
+ let response=await call(e,'/api/listing/preference',{enabled:true,expectedRevision:0},cookie);assert.equal(response.status,200);
+ let account=await(await call(e,'/api/account',undefined,cookie)).json();assert.equal(account.publication.choicePolicy,null);
+ response=await call(e,'/api/listing/preference',{enabled:true,expectedRevision:1,choicePolicy:CHOICE_POLICY},cookie);assert.equal(response.status,200);
+ account=await(await call(e,'/api/account',undefined,cookie)).json();assert.equal(account.publication.choicePolicy,CHOICE_POLICY);
+ assert.equal((await call(e,'/api/listing/preference',{enabled:false,expectedRevision:1,choicePolicy:CHOICE_POLICY},cookie)).status,409);
+ assert.equal((await call(e,'/api/account/delete',{confirm:'delete-my-records'},cookie)).status,200);
+ assert.equal(await e.DB.prepare('SELECT COUNT(*) n FROM nocturne_records').first('n'),0);
+});
 test('new records require concrete body perspective, age and mood choices before creating an account',async()=>{
  const e=environment();
  for(const key of ['age','gender','mood'])for(const value of ['unset','',undefined]){
@@ -37,7 +54,7 @@ test('stale progress is rejected, completed history is immutable, and another ac
 test('unknown answers can finish without being manufactured into zeros; empty profiles cannot be listed',async()=>{const e=environment(),u=await user(e,false);const r=await call(e,'/api/complete',{id:u.id,answers:emptyAnswers(),dwell:Array(24).fill(0),visited:16777215,cursor:23,revision:2},u.cookie);assert.equal(r.status,200);assert.equal((await r.json()).profile.answered,0);assert.equal((await call(e,'/api/listing',{publish:true,recordId:u.id,intent:'any',showAge:false,showGender:false},u.cookie)).status,409);});
 test('recovery stores only a hash and logs in to the same history; replay does not reveal the key',async()=>{const e=environment(),u=await user(e),r=await call(e,'/api/recovery/create',{},u.cookie);assert.equal(r.status,200);const {key}=await r.json();assert.match(key,/^[A-Za-z0-9_-]{43}$/);assert.equal((await call(e,'/api/recovery/create',{},u.cookie)).status,409);assert.notEqual(await e.DB.prepare('SELECT recovery_hash FROM nocturne_accounts').first('recovery_hash'),key);const login=await call(e,'/api/recovery/login',{key,token:'verified-test'});assert.equal(login.status,200);const cookie=login.headers.get('set-cookie').split(';')[0],p=await(await call(e,'/api/account',undefined,cookie)).json();assert.equal(p.records[0].id,u.id);assert.ok(!JSON.stringify(p).includes(key));await call(e,'/api/logout',{},cookie);assert.equal((await(await call(e,'/api/account',undefined,cookie)).json()).signedIn,false);});
 test('legacy sessions issue canonical custom-domain share URLs for new and reused snapshots',async()=>{
- const e=environment(),u=await user(e),body={id:u.id,tags:[]};e.PUBLIC_SITE_ORIGIN='https://nocturne.ai-yu-me.com';
+ const e=environment(),u=await user(e),body={id:u.id,tags:[]};e.PUBLIC_SITE_ORIGIN='https://kuseiro.com';
  const first=await call(e,'/api/share',body,u.cookie);assert.equal(first.status,201);const url=(await first.json()).url;
  assert.equal(new URL(url).origin,e.PUBLIC_SITE_ORIGIN);
  const reused=await call(e,'/api/share',body,u.cookie);assert.equal(reused.status,200);assert.equal((await reused.json()).url,url);
@@ -166,4 +183,68 @@ test('exhausting the new-write budget still permits taking a listing and share d
  assert.equal((await call(e,'/api/listing',{publish:false},u.cookie)).status,200);assert.equal((await call(e,'/api/share/revoke',{id},u.cookie)).status,200);
  assert.equal((await call(e,'/api/share/'+id)).status,404);assert.equal((await(await call(e,'/api/account',undefined,u.cookie)).json()).listing,null);
  await assert.rejects(e.DB.prepare('UPDATE nocturne_accounts SET last_seen=last_seen').run(),/nocturne_capacity/);
+});
+
+test('required participation survives recovery and unlocks sharing only after confirmed publication',async()=>{
+ const e=environment(),b={...startBody(),choicePolicy:CHOICE_POLICY,entryPolicy:REQUIRED_ENTRY_POLICY};
+ const accepted=await call(e,'/api/participate',b),cookie=accepted.headers.get('set-cookie').split(';')[0],u={id:b.id,cookie};
+ assert.equal(accepted.status,201);
+ const complete={id:b.id,answers:emptyAnswers(),dwell:Array(24).fill(100),visited:16777215,cursor:23,revision:2};
+ assert.equal((await call(e,'/api/complete',complete,cookie)).status,409);
+ assert.equal(await e.DB.prepare('SELECT completed_at FROM nocturne_records WHERE id=?').bind(b.id).first('completed_at'),null);
+ complete.answers=answers();assert.equal((await call(e,'/api/complete',complete,cookie)).status,200);
+ let account=await(await call(e,'/api/account',undefined,cookie)).json();
+ assert.equal(account.records[0].entryPolicy,REQUIRED_ENTRY_POLICY);assert.equal(account.records[0].firstPublishedAt,null);
+ assert.equal((await call(e,'/api/share',{id:b.id,tags:[],nameOnly:true},cookie)).status,409);
+ assert.equal((await call(e,'/api/listings',undefined,cookie)).status,409);
+ await publish(e,u);
+ account=await(await call(e,'/api/account',undefined,cookie)).json();
+ const publishedAt=account.records[0].firstPublishedAt;assert.ok(publishedAt>0);
+ assert.equal((await call(e,'/api/share',{id:b.id,tags:[],nameOnly:true},cookie)).status,201);
+ assert.equal((await call(e,'/api/listings',undefined,cookie)).status,200);
+ assert.equal((await call(e,'/api/listing',{publish:false,expectedRevision:account.publication.revision},cookie)).status,200);
+ account=await(await call(e,'/api/account',undefined,cookie)).json();
+ assert.equal(account.listing,null);assert.equal(account.records[0].firstPublishedAt,publishedAt);
+ assert.equal((await call(e,'/api/share',{id:b.id,tags:[],nameOnly:true},cookie)).status,200);
+});
+test('unknown participation terms and missing explicit acceptance cannot create a required record',async()=>{
+ const e=environment();
+ for(const b of [{...startBody(),entryPolicy:REQUIRED_ENTRY_POLICY},{...startBody(),choicePolicy:CHOICE_POLICY,entryPolicy:'unknown'},{...startBody(),choicePolicy:CHOICE_POLICY,entryPolicy:REQUIRED_ENTRY_POLICY,adult:false}])assert.equal((await call(e,'/api/participate',b)).status,400);
+ assert.equal(await e.DB.prepare('SELECT COUNT(*) n FROM nocturne_records').first('n'),0);
+});
+
+test('local cleanup can expire an absent account cookie idempotently without deleting records or bypassing a live scope',async()=>{
+ const e=environment(),u=await user(e),scope=await e.DB.prepare('SELECT account_id FROM nocturne_records WHERE id=?').bind(u.id).first('account_id');
+ const scoped=(cookie,scope,b={})=>{const r=request('/api/logout',b,cookie);r.headers.set('X-Nocturne-Scope',scope);return handleNocturne(r,e,verify);};
+ const mismatch=await scoped(u.cookie,'another-account');assert.equal(mismatch.status,409);assert.equal((await(await call(e,'/api/account',undefined,u.cookie)).json()).signedIn,true);
+ assert.equal((await scoped(u.cookie,scope)).status,200);assert.equal(await e.DB.prepare('SELECT COUNT(*) n FROM nocturne_records').first('n'),1);
+ for(let i=0;i<2;i++){const r=await scoped(u.cookie,scope);assert.equal(r.status,200);assert.match(r.headers.get('set-cookie'),/Max-Age=0/);}
+ assert.equal((await scoped('',scope,{unknown:true})).status,400);
+ assert.equal((await handleNocturne(request('/api/logout',{},'', 'https://evil.example'),e,verify)).status,403);
+});
+
+test('short-share preview replaces homepage metadata with only the public card and its artwork',async()=>{
+ const e=environment(),u=await user(e),r=await call(e,'/api/share',{id:u.id,tags:[],personal:''},u.cookie),{url}=await r.json(),id=url.split('/').pop();
+ const card={v:2,instrument:INSTRUMENT,title:'共有 "検証" & カード',quote:'公開する一言だけ',summary:'公開カードの説明',tags:[],traits:[],art:'crest-01',artVersion:1};
+ await e.DB.prepare('UPDATE nocturne_shares SET card=? WHERE id=?').bind(JSON.stringify(card),id).run();
+ e.ASSETS.fetch=async()=>new Response(fs.readFileSync('src/index.html','utf8'),{headers:{'Content-Type':'text/html','ETag':'old','Content-Length':'1','Content-Encoding':'gzip','Last-Modified':'old'}});
+ const response=await serveShortShare(new Request(url+'?private=do-not-copy',{headers:{'User-Agent':'Twitterbot/1.0'}}),e),html=await response.text();assert.equal(response.status,200);
+ for(const key of ['og:title','og:description','og:url','og:image','twitter:card','twitter:title','twitter:image','description'])assert.equal((html.match(new RegExp(`(?:name|property)="${key}"`,'g'))||[]).length,1,key+' must be unique');
+ assert.match(html,/<meta property="og:title" content="共有 &quot;検証&quot; &amp; カード｜KUSEIRO">/);
+ assert.ok(html.includes(`<meta property="og:url" content="${url}?card=1">`));assert.ok(html.includes(`<link rel="canonical" href="${url}">`));
+ assert.ok(html.includes('content="https://nocturne.test/art/crest-01.webp"'));assert.match(html,/<meta name="twitter:card" content="summary_large_image">/);
+ assert.ok(!html.includes('https://kuseiro.com/art/key.webp'));assert.ok(!html.includes('do-not-copy'));assert.ok(!html.includes('24の場面から、性癖の二つ名と思いがけない一面を持ち帰ろう。'));
+ assert.match(html,/<html[^>]*data-eligibility-required/);assert.match(html,/<meta name="robots" content="noindex, nofollow">/);
+ for(const header of ['ETag','Content-Length','Content-Encoding','Last-Modified'])assert.equal(response.headers.get(header),null);
+ assert.equal(response.headers.get('cache-control'),'no-store');assert.match(response.headers.get('x-robots-tag'),/noindex/);
+ const metadata=html.match(/<meta name="nocturne-card" content="([^"]+)">/)[1];assert.ok(!/answers|persona|recovery|account_id/.test(metadata));
+ const head=await serveShortShare(new Request(url,{method:'HEAD'}),e);assert.equal(head.status,200);assert.equal(await head.text(),'');
+ const ordinary=await serveShortShare(new Request(url),e);assert.equal(await ordinary.text(),html,'crawler and human receive the same public HTML');
+ await e.DB.prepare('UPDATE nocturne_shares SET expires_at=0 WHERE id=?').bind(id).run();const expired=await serveShortShare(new Request(url,{headers:{'User-Agent':'Twitterbot/1.0'}}),e);assert.equal(expired.status,404);assert.ok(!(await expired.text()).includes('og:image'));
+});
+test('legacy snapshots retain their link and obtain a safe artwork fallback; revocation removes preview access',async()=>{
+ const e=environment(),u=await user(e),r=await call(e,'/api/share',{id:u.id,tags:[],personal:''},u.cookie),{url}=await r.json(),id=url.split('/').pop();
+ const card={v:1,instrument:'nocturne24-1',title:'以前の二つ名',quote:'公開カード',summary:'公開する説明',tags:[],traits:[]};await e.DB.prepare('UPDATE nocturne_shares SET card=? WHERE id=?').bind(JSON.stringify(card),id).run();
+ const page=await serveShortShare(new Request(url),e);assert.equal(page.status,200);assert.match(await page.text(),/https:\/\/nocturne.test\/art\/key.webp/);
+ await call(e,'/api/share/revoke',{id},u.cookie);assert.equal((await serveShortShare(new Request(url),e)).status,404);
 });

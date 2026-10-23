@@ -2,10 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {D1} from './fixtures/d1.mjs';
 import {handleMetrics,maintainMetrics} from '../src/metrics-service.mjs';
+import vm from 'node:vm';
+import {readFile} from 'node:fs/promises';
 const origin='https://nocturne.example';
 const environment=()=>({DB:new D1(),SITE_ORIGIN:origin,METRIC_LIMIT:{limit:async()=>({success:true})}});
 const body=()=>({session:crypto.randomUUID(),events:['visit','start_open'],source:'direct',device:'mobile'});
 const req=(b,headers={})=>new Request(origin+'/api/metrics',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin,'X-Nocturne':'1',...headers},body:JSON.stringify(b)});
+test('a browser measurement failure cannot prevent starting the diagnosis',async()=>{
+ const source=(await readFile('src/metrics.mjs','utf8')).replace(/^import .*;$/m,'').replace(/export /g,'');
+ let scheduled=0;
+ const context=vm.createContext({eligibilityReady:()=>true,ensureEligibility:()=>{},navigator:{},Date,URL,innerWidth:390,location:{hostname:'example.invalid',pathname:'/'},document:{referrer:'',addEventListener(){}},sessionStorage:{getItem(){throw Error('Storage denied');}},crypto:{randomUUID(){throw Error('Unavailable in embedded browser');}},setTimeout(){scheduled++;},clearTimeout(){}});
+ vm.runInContext(source,context);
+ assert.doesNotThrow(()=>vm.runInContext("measure('quiz_start')",context));
+ assert.equal(scheduled,0);
+});
 test('anonymous counts deduplicate repeated events and retries within a tab session',async()=>{
  const e=environment(),b=body(),now=Date.now();
  assert.equal((await handleMetrics(req(b),e,now)).status,200);
@@ -39,4 +49,10 @@ test('daily cap is atomic and separate from answering quotas; short-lived dedupl
  await maintainMetrics(e,now+3*86400000);
  assert.equal(await e.DB.prepare('SELECT COUNT(*) n FROM nocturne_metric_events').first('n'),0);
  assert.equal(await e.DB.prepare('SELECT SUM(n) n FROM nocturne_metric_daily').first('n'),1);
+});
+
+test('browser cleanup drops queued events and a pending response cannot restore the measurement session',async()=>{
+ const source=(await readFile('src/metrics.mjs','utf8')).replace(/^import .*;$/m,'').replace(/export /g,'');const values=new Map();let done,calls=0;
+ const context=vm.createContext({eligibilityReady:()=>true,ensureEligibility:()=>{},navigator:{},Date,URL,innerWidth:390,location:{hostname:'example.invalid',pathname:'/'},document:{referrer:'',addEventListener(){}},sessionStorage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)},crypto,setTimeout(){return 1;},clearTimeout(){},fetch:()=>{calls++;return new Promise(resolve=>{done=resolve;});}});
+ vm.runInContext(source,context);context.measure('quiz_start');const pending=context.flush();assert.equal(calls,1);context.measure('quiz_complete');context.clearBrowserMeasurements();done({ok:true});await pending;await context.flush();assert.equal(calls,1);assert.equal(values.has('nocturne_metrics'),false);
 });

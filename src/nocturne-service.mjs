@@ -1,4 +1,7 @@
-import {validArt} from './art.mjs';
+import {CHOICE_POLICY,REQUIRED_ENTRY_POLICY} from './consent.mjs';
+import {stopAffiliateForRecovery} from './affiliate-service.mjs';
+import {validArt,artSource,preferredArt} from './art.mjs';
+import {sharePreviewUrl} from './x-share.mjs';
 import {diagnose as version3Diagnose,validAnswers as version3ValidAnswers} from './nocturne-v3.mjs';
 import {visibleCard,firstMissingChoice} from './presentation.mjs';
 import {diagnose as version2Diagnose,validAnswers as version2ValidAnswers} from './nocturne-v2.mjs';
@@ -26,10 +29,10 @@ async function body(request){
 async function account(request,env,now){
   const token=(request.headers.get('Cookie')||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(cookieName(env)+'='))?.slice(cookieName(env).length+1);
   if(!KEY.test(token||''))return null;
-  return env.DB.prepare('SELECT a.id,a.recovery_hash,a.listing_preference,a.listing_revision,a.moderation_hold,s.token_hash,s.created_at AS session_created FROM nocturne_sessions s JOIN nocturne_accounts a ON a.id=s.account_id WHERE s.token_hash=? AND s.expires_at>?').bind(await hash(token),now).first();
+  return env.DB.prepare('SELECT a.id,a.recovery_hash,a.listing_preference,a.listing_revision,a.listing_choice_policy,a.moderation_hold,s.token_hash,s.created_at AS session_created FROM nocturne_sessions s JOIN nocturne_accounts a ON a.id=s.account_id WHERE s.token_hash=? AND s.expires_at>?').bind(await hash(token),now).first();
 }
 async function record(env,id,owner){return UUID.test(id||'')?env.DB.prepare('SELECT * FROM nocturne_records WHERE id=? AND account_id=?').bind(id,owner).first():null;}
-function presentRecord(row){return {id:row.id,instrument:row.instrument,answers:JSON.parse(row.answers),dwell:JSON.parse(row.dwell),visited:row.visited,cursor:row.cursor,revision:row.revision,context:{timeframe:row.timeframe,mood:row.mood,timeBand:row.time_band},persona:{age:row.age,gender:row.gender},createdAt:row.created_at,completedAt:row.completed_at,profile:row.profile?JSON.parse(row.profile):null};}
+function presentRecord(row){return {id:row.id,instrument:row.instrument,answers:JSON.parse(row.answers),dwell:JSON.parse(row.dwell),visited:row.visited,cursor:row.cursor,revision:row.revision,context:{timeframe:row.timeframe,mood:row.mood,timeBand:row.time_band},persona:{age:row.age,gender:row.gender},createdAt:row.created_at,completedAt:row.completed_at,profile:row.profile?JSON.parse(row.profile):null,entryPolicy:row.entry_policy||null,firstPublishedAt:row.first_published_at||null};}
 async function latest(env,owner){return env.DB.prepare('SELECT * FROM nocturne_records WHERE account_id=? AND completed_at IS NOT NULL AND instrument IN (?,?,?,?) ORDER BY completed_at DESC LIMIT 1').bind(owner,...supported).first();}
 async function verification(b,request,env,verify){return loopback(env)&&new URL(request.url).origin===env.SITE_ORIGIN&&b.token==='local-test-only'||typeof b.token==='string'&&b.token.length<=2048&&await verify(b.token,env);}
 async function makeSession(env,owner,now){const token=random(32);await env.DB.batch([env.DB.prepare('INSERT INTO nocturne_sessions(token_hash,account_id,created_at,expires_at) VALUES(?,?,?,?)').bind(await hash(token),owner,now,now+30*DAY),env.DB.prepare('DELETE FROM nocturne_sessions WHERE account_id=? AND token_hash NOT IN (SELECT token_hash FROM nocturne_sessions WHERE account_id=? ORDER BY created_at DESC LIMIT 10)').bind(owner,owner)]);return token;}
@@ -50,15 +53,17 @@ export async function handleNocturne(request,env,verify){
   if(path==='/api/config')return reply({localTest:loopback(env),instrument:INSTRUMENT});
   if(shareGet){const row=await env.DB.prepare('SELECT card FROM nocturne_shares WHERE id=? AND expires_at>? AND revoked_at IS NULL').bind(path.split('/').pop(),Date.now()).first();return row?reply({card:JSON.parse(row.card)}):reply({error:'not_found'},404);}
   const now=Date.now();let who=await account(request,env,now),b={};
-  if(path!=='/api/recovery/login'&&request.headers.has('X-Nocturne-Scope')&&request.headers.get('X-Nocturne-Scope')!==who?.id)return reply({error:'sign_in'},409);
+  if(path!=='/api/recovery/login'&&!(path==='/api/logout'&&!who)&&request.headers.has('X-Nocturne-Scope')&&request.headers.get('X-Nocturne-Scope')!==who?.id)return reply({error:'sign_in'},409);
   if(!get){try{b=await body(request);}catch{return reply({error:'invalid_body'},400);}}
+  if(path==='/api/logout'&&!who){if((!b||typeof b!=='object'||Array.isArray(b)||Object.keys(b).length!==0))return reply({error:'invalid_body'},400);return reply({signedIn:false},200,{'Set-Cookie':cookie('',env,true)});}
   if(!get&&env.RESEARCH_ENABLED!=='true'&&!['/api/account/delete','/api/record/delete','/api/logout','/api/share/revoke','/api/listing/preference','/api/block','/api/unblock','/api/report'].includes(path)&&!(path==='/api/listing'&&b.publish===false))return reply({error:'unavailable'},503);
   if(path==='/api/account'){
     if(!who)return reply({signedIn:false});
     const rows=await env.DB.prepare('SELECT * FROM nocturne_records WHERE account_id=? AND instrument IN (?,?,?,?) ORDER BY created_at DESC LIMIT 30').bind(who.id,...supported).all();
     const listing=await env.DB.prepare('SELECT id,card,intent,age,gender,expires_at,hidden,revision,record_id FROM nocturne_listings WHERE account_id=?').bind(who.id).first();
     const mutual=await env.DB.prepare('SELECT p.id,p.card FROM nocturne_interests i JOIN nocturne_interests j ON j.actor=i.target AND j.target=i.actor JOIN nocturne_listings p ON p.account_id=i.target JOIN nocturne_listings own ON own.account_id=i.actor WHERE i.actor=? AND p.hidden=0 AND own.hidden=0 AND i.actor NOT IN (SELECT id FROM nocturne_accounts WHERE moderation_hold=1) AND i.target NOT IN (SELECT id FROM nocturne_accounts WHERE moderation_hold=1) AND p.expires_at>? AND own.expires_at>? AND NOT EXISTS(SELECT 1 FROM nocturne_blocks b WHERE (b.actor=i.actor AND b.target=i.target) OR (b.actor=i.target AND b.target=i.actor)) LIMIT 30').bind(who.id,now,now).all();
-    return reply({signedIn:true,scope:who.id,hasRecovery:!!who.recovery_hash,records:rows.results.map(presentRecord),listing:listing?{...listing,card:JSON.parse(listing.card),status:listing.hidden||who.moderation_hold?'hidden':listing.expires_at<=now?'expired':'live'}:null,publication:{preference:who.listing_preference===null?null:!!who.listing_preference,revision:who.listing_revision,policy:PUBLICATION_POLICY},mutual:mutual.results.map(r=>({id:r.id,card:JSON.parse(r.card)}))});
+    const confirmedPublication=who.listing_choice_policy===CHOICE_POLICY||!!await env.DB.prepare('SELECT 1 AS confirmed FROM nocturne_publication_consents WHERE account_id=? AND revision=? AND policy=?').bind(who.id,who.listing_revision,PUBLICATION_POLICY).first();
+    return reply({signedIn:true,scope:who.id,hasRecovery:!!who.recovery_hash,records:rows.results.map(presentRecord),listing:listing?{...listing,card:JSON.parse(listing.card),status:listing.hidden||who.moderation_hold?'hidden':listing.expires_at<=now?'expired':'live'}:null,publication:{preference:who.listing_preference===null?null:!!who.listing_preference,revision:who.listing_revision,policy:PUBLICATION_POLICY,choicePolicy:confirmedPublication?CHOICE_POLICY:null},mutual:mutual.results.map(r=>({id:r.id,card:JSON.parse(r.card)}))});
   }
   if(path==='/api/recovery/login'){
     if(!keys(b,['key','token'])||!KEY.test(b.key||''))return reply({error:'invalid_request'},400);
@@ -69,7 +74,7 @@ export async function handleNocturne(request,env,verify){
     return reply({signedIn:true},200,{'Set-Cookie':cookie(token,env)});
   }
   if(path==='/api/participate'){
-    if(!keys(b,['id','instrument','consent','adult','context','persona','token'])||!UUID.test(b.id||'')||!supported.includes(b.instrument||PREVIOUS_INSTRUMENT)||![CONSENT,PREVIOUS_CONSENT].includes(b.consent)||b.adult!==true||!validPersona(b.persona)||!validContext(b.context)||firstMissingChoice({age:b.persona?.age,gender:b.persona?.gender,mood:b.context?.mood},PROFILE_OPTIONS))return reply({error:'invalid_request'},400);
+    if(!keys(b,['id','instrument','consent','adult','context','persona','token','choicePolicy','entryPolicy'])||!UUID.test(b.id||'')||!supported.includes(b.instrument||PREVIOUS_INSTRUMENT)||![CONSENT,PREVIOUS_CONSENT].includes(b.consent)||b.adult!==true||b.choicePolicy!==undefined&&b.choicePolicy!==CHOICE_POLICY||b.entryPolicy!==undefined&&b.entryPolicy!==REQUIRED_ENTRY_POLICY||b.entryPolicy===REQUIRED_ENTRY_POLICY&&b.choicePolicy!==CHOICE_POLICY||!validPersona(b.persona)||!validContext(b.context)||firstMissingChoice({age:b.persona?.age,gender:b.persona?.gender,mood:b.context?.mood},PROFILE_OPTIONS))return reply({error:'invalid_request'},400);
     const instrument=b.instrument||PREVIOUS_INSTRUMENT;
     let token=null,pending=[];
     if(!who){
@@ -84,7 +89,7 @@ export async function handleNocturne(request,env,verify){
     if(existing&&existing.instrument!==instrument)return reply({error:'conflict'},409);
     if(!existing){
       const conflict=await env.DB.prepare('SELECT id FROM nocturne_records WHERE id=?').bind(b.id).first();if(conflict)return reply({error:'conflict'},409);
-      pending.push(env.DB.prepare('INSERT INTO nocturne_records(id,account_id,instrument,consent,answers,dwell,timeframe,mood,age,gender,time_band,created_at,last_seen) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(b.id,who.id,instrument,b.consent,JSON.stringify(emptyAnswers()),JSON.stringify(Array(24).fill(0)),b.context.timeframe,b.context.mood,b.persona.age,b.persona.gender,b.context.timeBand,now,now));
+      pending.push(env.DB.prepare('INSERT INTO nocturne_records(id,account_id,instrument,consent,answers,dwell,timeframe,mood,age,gender,time_band,created_at,last_seen,choice_policy,entry_policy) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(b.id,who.id,instrument,b.consent,JSON.stringify(emptyAnswers()),JSON.stringify(Array(24).fill(0)),b.context.timeframe,b.context.mood,b.persona.age,b.persona.gender,b.context.timeBand,now,now,b.choicePolicy||null,b.entryPolicy||null));
       await env.DB.batch(pending);
     }
     return reply({accepted:true,id:b.id,scope:who.id},201,token?{'Set-Cookie':cookie(token,env)}:{});
@@ -115,7 +120,7 @@ export async function handleNocturne(request,env,verify){
     if(path==='/api/complete'&&(b.visited!==16777215||b.cursor!==23))return reply({error:'invalid_request'},400);
     if(own.completed_at)return path==='/api/complete'&&own.answers===JSON.stringify(b.answers)?reply({saved:true,profile:JSON.parse(own.profile)}):reply({error:'already_complete'},409);
     if(b.revision<=own.revision)return reply({error:'conflict',revision:own.revision},409);
-    const profile=path==='/api/complete'?modelFor(own.instrument).diagnose(b.answers,own.gender):null;
+    const profile=path==='/api/complete'?modelFor(own.instrument).diagnose(b.answers,own.gender):null;if(profile&&own.entry_policy===REQUIRED_ENTRY_POLICY&&profile.answered<12)return reply({error:'complete_first'},409);
     const updated=await env.DB.prepare('UPDATE nocturne_records SET answers=?,dwell=?,visited=?,cursor=?,revision=?,last_seen=?,completed_at=?,profile=? WHERE id=? AND account_id=? AND revision<? AND completed_at IS NULL').bind(JSON.stringify(b.answers),JSON.stringify(b.dwell),b.visited,b.cursor,b.revision,now,profile?now:null,profile?JSON.stringify(profile):null,b.id,who.id,b.revision).run();
     if(!updated.meta?.changes){const stored=await record(env,b.id,who.id);if(path==='/api/complete'&&stored?.completed_at&&stored.answers===JSON.stringify(b.answers))return reply({saved:true,profile:JSON.parse(stored.profile),revision:stored.revision});return reply({error:'conflict',revision:stored?.revision},409);}
     await env.DB.prepare('UPDATE nocturne_accounts SET last_seen=? WHERE id=?').bind(now,who.id).run();
@@ -141,7 +146,7 @@ export async function handleNocturne(request,env,verify){
   }
   if(path==='/api/share'){
     if(!keys(b,['id','tags','personal','nameOnly','art'])||b.art!==undefined&&!validArt(b.art)||b.nameOnly!==undefined&&typeof b.nameOnly!=='boolean'||!UUID.test(b.id||'')||!Array.isArray(b.tags)||b.tags.length>3||b.tags.some(s=>typeof s!=='string'||!s.trim()||s.length>24||/[<>\u0000-\u001f]/.test(s))||b.personal!==undefined&&(typeof b.personal!=='string'||b.personal.length>160||/[<>\u0000-\u001f]/.test(b.personal)))return reply({error:'invalid_request'},400);
-    const own=await record(env,b.id,who.id);if(!own?.profile)return reply({error:'not_found'},404);
+    const own=await record(env,b.id,who.id);if(!own?.profile)return reply({error:'not_found'},404);if(own.entry_policy===REQUIRED_ENTRY_POLICY&&!own.first_published_at)return reply({error:'publish_first'},409);
     const card=visibleCard(publicCard(JSON.parse(own.profile),b.tags.map(t=>t.trim()),b.personal?.trim(),b.art),b.nameOnly===true);if(!validCard(card))return reply({error:'invalid_request'},400);
     const encoded=JSON.stringify(card),digest=await hash(encoded),saved=await env.DB.prepare('SELECT id FROM nocturne_shares WHERE account_id=? AND digest=? AND expires_at>? AND revoked_at IS NULL').bind(who.id,digest,now).first();
     if(saved)return reply({url:(env.PUBLIC_SITE_ORIGIN||env.SITE_ORIGIN)+'/s/'+saved.id});
@@ -165,9 +170,9 @@ export async function handleNocturne(request,env,verify){
     await env.DB.prepare('UPDATE nocturne_shares SET revoked_at=? WHERE id=? AND account_id=?').bind(now,b.id,who.id).run();return reply({revoked:true});
   }
   if(path==='/api/listing/preference'){
-    if(!keys(b,['enabled','expectedRevision'])||typeof b.enabled!=='boolean'||!Number.isInteger(b.expectedRevision))return reply({error:'invalid_request'},400);
-    const updated=await env.DB.prepare('UPDATE nocturne_accounts SET listing_preference=?,listing_revision=listing_revision+1 WHERE id=? AND listing_revision=?').bind(Number(b.enabled),who.id,b.expectedRevision).run();
-    return updated.meta?.changes?reply({saved:true,revision:b.expectedRevision+1,preference:b.enabled}):reply({error:'conflict'},409);
+    if(!keys(b,['enabled','expectedRevision','choicePolicy'])||typeof b.enabled!=='boolean'||!Number.isInteger(b.expectedRevision)||b.choicePolicy!==undefined&&b.choicePolicy!==CHOICE_POLICY)return reply({error:'invalid_request'},400);
+    const updated=await env.DB.prepare('UPDATE nocturne_accounts SET listing_preference=?,listing_revision=listing_revision+1,listing_choice_policy=?,listing_choice_at=? WHERE id=? AND listing_revision=?').bind(Number(b.enabled),b.choicePolicy||null,b.choicePolicy?now:null,who.id,b.expectedRevision).run();
+    return updated.meta?.changes?reply({saved:true,revision:b.expectedRevision+1,preference:b.enabled,choicePolicy:b.choicePolicy||null}):reply({error:'conflict'},409);
   }
   if(path==='/api/listing'&&b.publish===false){
     if(!keys(b,['publish','expectedRevision'])||b.expectedRevision!==undefined&&!Number.isInteger(b.expectedRevision))return reply({error:'invalid_request'},400);
@@ -197,16 +202,17 @@ export async function handleNocturne(request,env,verify){
     const semantic=c=>JSON.stringify({...c,art:undefined,artVersion:undefined});
     const changed=old&&(semantic(JSON.parse(old.card))!==semantic(card)||old.age!==age||old.gender!==gender||old.intent!==b.intent);
     const results=await env.DB.batch([
-      env.DB.prepare('UPDATE nocturne_accounts SET listing_preference=1,listing_revision=listing_revision+1 WHERE id=? AND listing_revision=? AND moderation_hold=0').bind(who.id,b.expectedRevision),
+      env.DB.prepare('UPDATE nocturne_accounts SET listing_preference=1,listing_revision=listing_revision+1,listing_choice_policy=?,listing_choice_at=? WHERE id=? AND listing_revision=? AND moderation_hold=0').bind(CHOICE_POLICY,now,who.id,b.expectedRevision),
       env.DB.prepare('INSERT INTO nocturne_listings(id,account_id,card,intent,age,gender,created_at,expires_at,revision,record_id) SELECT ?,?,?,?,?,?,?,?,?,? WHERE changes()=1 ON CONFLICT(account_id) DO UPDATE SET card=excluded.card,intent=excluded.intent,age=excluded.age,gender=excluded.gender,expires_at=excluded.expires_at,revision=excluded.revision,record_id=excluded.record_id').bind(id,who.id,JSON.stringify(card),b.intent,age,gender,old?.created_at||now,now+7*DAY,revision,b.recordId),
       env.DB.prepare('INSERT INTO nocturne_publication_consents(account_id,revision,policy,digest,created_at) SELECT ?,?,?,?,? WHERE changes()=1').bind(who.id,revision,PUBLICATION_POLICY,digest,now),
-      env.DB.prepare('DELETE FROM nocturne_interests WHERE ?=1 AND changes()=1 AND (actor=? OR target=?) AND EXISTS(SELECT 1 FROM nocturne_publication_consents WHERE account_id=? AND revision=?)').bind(Number(!!changed),who.id,who.id,who.id,revision)
+      env.DB.prepare('DELETE FROM nocturne_interests WHERE ?=1 AND changes()=1 AND (actor=? OR target=?) AND EXISTS(SELECT 1 FROM nocturne_publication_consents WHERE account_id=? AND revision=?)').bind(Number(!!changed),who.id,who.id,who.id,revision),
+      env.DB.prepare('UPDATE nocturne_records SET first_published_at=COALESCE(first_published_at,?) WHERE id=? AND account_id=? AND EXISTS(SELECT 1 FROM nocturne_publication_consents WHERE account_id=? AND revision=? AND digest=?)').bind(now,b.recordId,who.id,who.id,revision,digest)
     ]);
     if(!results[0].meta?.changes){const saved=await priorReceipt();return saved?reply({published:true,id:saved.id,card:JSON.parse(saved.card),revision:saved.revision,expiresAt:saved.expires_at,reused:true}):reply({error:'conflict'},409);}
-    return reply({published:true,id,card,revision,expiresAt:now+7*DAY},201);
+    return reply({published:true,id,card,revision,firstPublishedAt:own.first_published_at||now,expiresAt:now+7*DAY},201);
   }
   if(path==='/api/listings'){
-    const own=await latest(env,who.id);if(!own||JSON.parse(own.profile).answered<12)return reply({error:'complete_first'},409);
+    const own=await latest(env,who.id);if(!own||JSON.parse(own.profile).answered<12)return reply({error:'complete_first'},409);if(own.entry_policy===REQUIRED_ENTRY_POLICY&&!own.first_published_at)return reply({error:'publish_first'},409);
     const gender=url.searchParams.get('gender')||'',age=url.searchParams.get('age')||'',intent=url.searchParams.get('intent')||'',trait=url.searchParams.get('trait')||'',relation=url.searchParams.get('relation')||'any',cursor=url.searchParams.get('before');
     if(gender&&!Object.hasOwn(GENDERS,gender)||age&&!Object.hasOwn(AGES,age)||intent&&!['similar','complement','any'].includes(intent)||trait&&!FACETS.some(f=>f.id===trait)||!['any','similar','complement'].includes(relation)||cursor&&!/^\d{13}:[A-Za-z0-9_-]{16}$/.test(cursor))return reply({error:'invalid_request'},400);
     const before=cursor?Number(cursor.split(':')[0]):now+1,beforeId=cursor?cursor.split(':')[1]:'';
@@ -254,8 +260,14 @@ export async function serveShortShare(request,env){
   if(!row)return new Response('この共有結果は期限が切れたか、取り消されました。',{status:404,headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store','X-Robots-Tag':'noindex'}});
   const card=JSON.parse(row.card);if(!validCard(card))return new Response('Unavailable',{status:503});
   const asset=await env.ASSETS.fetch(new Request(url.origin+'/',{headers:request.headers}));let html=await asset.text();
-  html=html.replace(/<title>[^<]*<\/title>/,`<title>${escape(card.title)}｜NOCTURNE</title>`).replace(/<meta name="robots"[^>]*>/,'<meta name="robots" content="noindex, nofollow">').replace('</head>',`<meta name="nocturne-card" content="${escape(JSON.stringify(card))}"></head>`);
-  const headers=new Headers(asset.headers);headers.set('Cache-Control','no-store');headers.set('X-Robots-Tag','noindex, nofollow');headers.set('Referrer-Policy','no-referrer');headers.delete('ETag');
+  const origin=env.PUBLIC_SITE_ORIGIN||env.SITE_ORIGIN||url.origin,canonical=new URL('/s/'+id,origin).href,image=new URL(artSource(validArt(card.art)?card.art:preferredArt(card)),origin).href;
+  const title=card.title+'｜KUSEIRO',description=card.quote||card.summary||card.title,alt=card.title+' — KUSEIROの共有カード';
+  // Replace inherited homepage metadata instead of appending conflicting tags.
+  html=html.replace(/<meta\b[^>]*\b(?:name|property)=["'](?:description|og:[^"']+|twitter:[^"']+|nocturne-card)["'][^>]*>/gi,'').replace(/<link\b[^>]*\brel=["']canonical["'][^>]*>/gi,'');
+  const meta=(key,value,property=false)=>`<meta ${property?'property':'name'}="${key}" content="${escape(value)}">`;
+  const metadata=`<link rel="canonical" href="${escape(canonical)}">`+meta('description',description)+Object.entries({'og:title':title,'og:description':description,'og:url':sharePreviewUrl(canonical),'og:type':'website','og:locale':'ja_JP','og:site_name':'KUSEIRO','og:image':image,'og:image:type':'image/webp','og:image:width':'1200','og:image:height':'800','og:image:alt':alt}).map(([key,value])=>meta(key,value,true)).join('')+Object.entries({'twitter:card':'summary_large_image','twitter:title':title,'twitter:description':description,'twitter:image':image,'twitter:image:alt':alt,'nocturne-card':JSON.stringify(card)}).map(([key,value])=>meta(key,value)).join('');
+  html=html.replace(/<title>[^<]*<\/title>/,`<title>${escape(title)}</title>`).replace(/<meta name="robots"[^>]*>/,'<meta name="robots" content="noindex, nofollow">').replace('</head>',metadata+'</head>');
+  const headers=new Headers(asset.headers);headers.set('Content-Type','text/html; charset=utf-8');headers.set('Cache-Control','no-store');headers.set('X-Robots-Tag','noindex, nofollow');headers.set('Referrer-Policy','no-referrer');for(const key of ['ETag','Content-Length','Content-Encoding','Last-Modified'])headers.delete(key);
   return new Response(request.method==='HEAD'?null:html,{headers});
 }
 
@@ -288,7 +300,7 @@ async function replayWithdrawals(env){
 }
 export async function maintainNocturne(env,now=Date.now()){
   if(!env.DB||!env.EVIDENCE)return;
-  if(env.RECOVERY_MODE&&env.RECOVERY_MODE!=='off'){if(!UUID.test(env.RECOVERY_MODE))throw Error('invalid_recovery');await env.EVIDENCE.delete('owner/nocturne-current.json');await replayWithdrawals(env);return;}
+  if(env.RECOVERY_MODE&&env.RECOVERY_MODE!=='off'){if(!UUID.test(env.RECOVERY_MODE))throw Error('invalid_recovery');await stopAffiliateForRecovery(env,now);await env.EVIDENCE.delete('owner/nocturne-current.json');await replayWithdrawals(env);return;}
   try{
     await env.DB.batch([
       env.DB.prepare('DELETE FROM nocturne_sessions WHERE expires_at<=?').bind(now),env.DB.prepare('DELETE FROM nocturne_shares WHERE expires_at<=?').bind(now),env.DB.prepare('DELETE FROM nocturne_listings WHERE expires_at<=?').bind(now-30*DAY),

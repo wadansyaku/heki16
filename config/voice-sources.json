@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "lookbackDays": 365,
+  "intervalHours": 24,
+  "sources": [
+    {"id":"hn-personality","provider":"hn","query":"personality test"},
+    {"id":"hn-quiz","provider":"hn","query":"personality quiz"},
+    {"id":"forms-privacy","provider":"github","repo":"formbricks/formbricks","query":"privacy"},
+    {"id":"survey-mobile","provider":"github","repo":"LimeSurvey/LimeSurvey","query":"mobile"}
+  ]
+}

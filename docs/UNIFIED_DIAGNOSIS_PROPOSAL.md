@@ -1,6 +1,6 @@
 # HEKI16 統一診断案
 
-2026-10-18の合意案。2026-10-19に40問・16タイプとして実装・公開した。以下は合意時の設計記録であり、最終的な質問と選択肢は `src/content.mjs`、判定は `src/diagnosis.mjs` に集約している。実装と検証の結果は `AUDIT_AND_IMPROVEMENT_PLAN.md` のv18節に記録した。
+2026-10-18の合意案。2026-10-19に40問・16タイプとして実装・公開した。以下は過去の設計記録で、現行仕様ではない。現在の24場面と判定は `src/nocturne.mjs`、二つ名と図鑑は `src/dossier-catalog.mjs` に集約している。`src/content.mjs` と `src/diagnosis.mjs` は既存共有リンクの読み取りのために保持している。実装と検証の結果は `AUDIT_AND_IMPROVEMENT_PLAN.md` のv18節に記録した。
 
 ## 今回の合意と狙い
 

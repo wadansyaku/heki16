@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "id": "synthetic-document-edit",
+  "dataClass": "synthetic",
+  "background": "A synthetic guide omits the save-before-start instruction.",
+  "goal": "Write the approved short instruction in docs/note.md.",
+  "inputs": ["docs/note.md"],
+  "allowedFiles": ["docs/note.md"],
+  "acceptance": [
+    {"id": "save-before-start", "type": "contains", "path": "docs/note.md", "text": "Save the note before starting."},
+    {"id": "no-obsolete-copy", "type": "not-contains", "path": "docs/note.md", "text": "TODO"}
+  ],
+  "humanChecks": ["reader-understands"],
+  "budget": {"maxAttempts": 3, "maxWallTimeMs": 1800000, "maxAttemptMs": 10000},
+  "adapter": {
+    "kind": "fixture",
+    "steps": [
+      {"mode": "write", "path": "docs/note.md", "content": "TODO\n"},
+      {"mode": "write", "path": "docs/note.md", "content": "Save the note before starting.\n"}
+    ]
+  }
+}

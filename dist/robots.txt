@@ -1,6 +1,11 @@
+User-agent: Twitterbot
+Allow: /
+Disallow: /api/
+Disallow: /legacy/
+
 User-agent: *
 Allow: /
 Disallow: /api/
 Disallow: /legacy/
 Disallow: /s/
-Sitemap: https://nocturne.ai-yu-me.com/sitemap.xml
+Sitemap: https://kuseiro.com/sitemap.xml

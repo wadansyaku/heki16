@@ -1,18 +1,27 @@
 {
-  "name": "heki-16-pro",
-  "version": "26.0.0",
+  "name": "kuseiro",
+  "version": "27.0.3",
   "private": true,
-  "description": "NOCTURNE — a private, contextual desire dossier",
+  "description": "KUSEIRO — a private, contextual desire dossier",
   "scripts": {
-    "test": "node tests/core.cjs src/legacy.html && node --test tests/reflection.test.mjs tests/diagnosis.test.mjs tests/worker.test.mjs tests/nocturne.test.mjs tests/nocturne-service.test.mjs tests/presentation.test.mjs tests/admin.test.mjs tests/metrics.test.mjs tests/affiliate.test.mjs",
+    "test": "node tests/core.cjs src/legacy.html && node --test --test-concurrency=1 tests/reflection.test.mjs tests/diagnosis.test.mjs tests/worker.test.mjs tests/nocturne.test.mjs tests/nocturne-service.test.mjs tests/presentation.test.mjs tests/publication-writer.test.mjs tests/publication-ui-state.test.mjs tests/admin.test.mjs tests/metrics.test.mjs tests/affiliate.test.mjs tests/affiliate-service.test.mjs tests/creative-proof.test.mjs tests/workspace.test.mjs tests/improvement-engine.test.mjs tests/improvement-product.test.mjs tests/eligibility.test.mjs tests/improvement-intake.test.mjs tests/improvement-collect.test.mjs tests/improvement-doctor.test.mjs tests/x-share.test.mjs tests/browser-cleanup.test.mjs tests/navigation.test.mjs tests/dossier-catalog.test.mjs",
     "serve": "python3 -m http.server 8766 --bind 127.0.0.1 --directory dist",
     "build": "node scripts/prepare-deploy.cjs",
     "verify": "npm run build && npm test && node tests/monetization.cjs && node tests/deployment.cjs",
     "predeploy": "npm run verify",
     "deploy": "wrangler deploy",
-    "preview": "npm run build && wrangler dev --ip 127.0.0.1 --port 8778 --var SITE_ORIGIN:http://127.0.0.1:8778 --var LOCAL_TEST_MODE:true",
+    "preview": "npm run build && node scripts/preview.cjs",
     "analytics": "node scripts/analytics.cjs",
-    "moderate": "node scripts/moderate.cjs"
+    "moderate": "node scripts/moderate.cjs",
+    "affiliate:control": "node scripts/affiliate-control.cjs",
+    "improvement": "node tools/improvement/cli.mjs",
+    "improvement:demo": "node tools/improvement/demo.mjs",
+    "voices:collect": "node tools/improvement/collect.mjs",
+    "improvement:doctor": "node tools/improvement/doctor.mjs",
+    "improvement:product-prepare": "node tools/improvement/product-profile.mjs",
+    "improvement:product-demo": "node tools/improvement/product-demo.mjs",
+    "improvement:container-setup": "node tools/improvement/container-setup.mjs",
+    "improvement:container-demo": "node tools/improvement/container-demo.mjs"
   },
   "devDependencies": {
     "budoux": "0.9.3",

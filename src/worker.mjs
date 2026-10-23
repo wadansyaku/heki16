@@ -1,3 +1,5 @@
+import {handleAffiliate} from './affiliate-service.mjs';
+import {handleEligibility,eligibilityStatus,requiresEligibility} from './eligibility-service.mjs';
 import {INSTRUMENT,CONSENT,validAnswers,DIMENSIONS,QUESTIONS} from './diagnosis.mjs';
 import {handleNocturne,serveShortShare,maintainNocturne} from './nocturne-service.mjs';
 import {handleMetrics,maintainMetrics} from './metrics-service.mjs';
@@ -146,8 +148,10 @@ export default {
   async fetch(request,env){try{
     const url=new URL(request.url),path=url.pathname;
     // Keep existing host-only sessions usable without allowing cross-origin requests.
-    if(env.LEGACY_SITE_ORIGIN&&url.origin===env.LEGACY_SITE_ORIGIN)env={...env,PUBLIC_SITE_ORIGIN:env.SITE_ORIGIN,SITE_ORIGIN:env.LEGACY_SITE_ORIGIN};
-    if(path==='/api/metrics')return await handleMetrics(request,env);if(path.startsWith('/s/'))return await serveShortShare(request,env);if(path.startsWith('/api/'))return await handleNocturne(request,env,verifyTurnstile)||await handleApi(request,env);return await env.ASSETS.fetch(request);
+    if([env.LEGACY_SITE_ORIGIN,env.LEGACY_CUSTOM_SITE_ORIGIN].filter(Boolean).includes(url.origin))env={...env,PUBLIC_SITE_ORIGIN:env.SITE_ORIGIN,SITE_ORIGIN:url.origin};
+    if(path==='/api/eligibility')return await handleEligibility(request,env);
+    if(requiresEligibility(request)&&!await eligibilityStatus(request,env))return json({error:'eligibility_required'},403);
+    if(path==='/api/promotions/status'||path.startsWith('/out/'))return await handleAffiliate(request,env);if(path==='/api/metrics')return await handleMetrics(request,env);if(path.startsWith('/s/'))return await serveShortShare(request,env);if(path.startsWith('/api/'))return await handleNocturne(request,env,verifyTurnstile)||await handleApi(request,env);return await env.ASSETS.fetch(request);
   }catch(e){return json({error:String(e).includes('nocturne_capacity')?'wait':'unavailable'},String(e).includes('nocturne_capacity')?429:503);}},
   async scheduled(event,env,ctx){ctx.waitUntil(Promise.all([runMaintenance(env),maintainNocturne(env),maintainMetrics(env)]));}
 };

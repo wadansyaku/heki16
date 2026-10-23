@@ -11,6 +11,6 @@ export function migrationResponse(request, destination) {
 
 export default {
   async fetch(request,env,ctx) {
-    return migrationResponse(request,'https://nocturne.aiyume.workers.dev') || app.fetch(request,env,ctx);
+    return migrationResponse(request,'https://kuseiro.com') || app.fetch(request,env,ctx);
   }
 };

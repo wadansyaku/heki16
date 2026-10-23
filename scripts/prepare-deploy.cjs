@@ -8,6 +8,8 @@ const dist = path.join(root, 'dist');
 const html = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
+const {advertisingFormOrigins}=require('../src/affiliate-config.mjs');
+const advertisingOrigins=advertisingFormOrigins(JSON.parse(fs.readFileSync(path.join(root,'config/monetization.json'),'utf8')));
 const policy = [
   "default-src 'none'",
   "script-src 'self' https://challenges.cloudflare.com",
@@ -18,7 +20,7 @@ const policy = [
   "frame-src https://challenges.cloudflare.com",
   "object-src 'none'",
   "base-uri 'none'",
-  "form-action 'none'",
+  "form-action 'self'"+(advertisingOrigins.length?' '+advertisingOrigins.join(' '):''),
   "frame-ancestors 'none'"
 ].join('; ');
 

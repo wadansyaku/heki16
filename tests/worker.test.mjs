@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
+import {handleEligibility} from '../src/eligibility-service.mjs';
+import {SITE_ELIGIBILITY_POLICY} from '../src/eligibility-core.mjs';
 import worker,{handleApi,validateSubmission,verifyTurnstile,readBody,qualityReport,runMaintenance} from '../src/worker.mjs';
 import {INSTRUMENT,CONSENT} from '../src/diagnosis.mjs';
 class DB {
@@ -16,13 +18,16 @@ function submission(){return {id:crypto.randomUUID(),deletionToken:Buffer.from(c
 const req=(path,body,origin=base)=>new Request(base+path,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json',Origin:origin}:{},body:body?JSON.stringify(body):undefined});
 const hash=async t=>Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t))).toString('hex');
 test('custom domain preserves legacy sessions while each host rejects the other host origin',async()=>{
- const current='https://nocturne.ai-yu-me.com',legacy='https://nocturne.aiyume.workers.dev';
- const env={...environment(),SITE_ORIGIN:current,LEGACY_SITE_ORIGIN:legacy};
- for(const host of [current,legacy]){
+ const current='https://kuseiro.com',legacy='https://nocturne.aiyume.workers.dev',custom='https://nocturne.ai-yu-me.com';
+ const hosts=[current,legacy,custom];
+ const env={...environment(),SITE_ORIGIN:current,LEGACY_SITE_ORIGIN:legacy,LEGACY_CUSTOM_SITE_ORIGIN:custom,ELIGIBILITY_SECRET:'test-eligibility-secret-at-least-32-characters'};
+ for(const host of hosts){
   assert.deepEqual(await (await worker.fetch(new Request(host+'/api/account'),env)).json(),{signedIn:false});
-  const request=origin=>new Request(host+'/api/participate',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin,'X-Nocturne':'1'},body:'{}'});
+  const age=await handleEligibility(new Request(host+'/api/eligibility',{method:'POST',headers:{Origin:host,'Content-Type':'application/json'},body:JSON.stringify({policy:SITE_ELIGIBILITY_POLICY,confirmed:true})}),{...env,SITE_ORIGIN:host});
+  const Cookie=age.headers.get('Set-Cookie').split(';')[0];
+  const request=origin=>new Request(host+'/api/participate',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin,'X-Nocturne':'1',Cookie},body:'{}'});
   assert.equal((await worker.fetch(request(host),env)).status,400);
-  assert.equal((await worker.fetch(request(host===current?legacy:current),env)).status,403);
+  for(const other of hosts.filter(value=>value!==host))assert.equal((await worker.fetch(request(other),env)).status,403);
  }
  assert.equal(env.SITE_ORIGIN,current);
  assert.equal((await worker.fetch(new Request('https://unknown.example/api/account'),env)).status,403);

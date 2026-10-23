@@ -11,7 +11,8 @@
     "directory": "dist",
     "run_worker_first": [
       "/api/*",
-      "/s/*"
+      "/s/*",
+      "/out/*"
     ],
     "not_found_handling": "404-page",
     "binding": "ASSETS"
@@ -21,10 +22,11 @@
     "cpu_ms": 250
   },
   "vars": {
-    "SITE_ORIGIN": "https://nocturne.ai-yu-me.com",
+    "SITE_ORIGIN": "https://kuseiro.com",
     "RESEARCH_ENABLED": "true",
     "RECOVERY_MODE": "off",
-    "LEGACY_SITE_ORIGIN": "https://nocturne.aiyume.workers.dev"
+    "LEGACY_SITE_ORIGIN": "https://nocturne.aiyume.workers.dev",
+    "LEGACY_CUSTOM_SITE_ORIGIN": "https://nocturne.ai-yu-me.com"
   },
   "d1_databases": [
     {
@@ -72,6 +74,10 @@
     ]
   },
   "routes": [
+    {
+      "pattern": "kuseiro.com",
+      "custom_domain": true
+    },
     {
       "pattern": "nocturne.ai-yu-me.com",
       "custom_domain": true
