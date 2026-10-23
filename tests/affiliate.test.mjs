@@ -22,6 +22,7 @@ test('only explicit choice enables local ranking; demographics, boundaries, unkn
  const ranked=[{id:'one',affinities:['lead'],expiresAt:'2027-01-01'},{id:'two',affinities:['lead','voice'],expiresAt:'2027-01-01'},{id:'general',affinities:[],expiresAt:'2027-01-01'},{id:'miss',affinities:['yield'],expiresAt:'2027-01-01'}];
  const strong=[{id:'lead',strong:true,label:'主導したい'},{id:'voice',strong:true,label:'声に惹かれる'}];
  assert.deepEqual(selectPromotions(ranked,{consented:true,facets:strong},now).map(c=>c.id),['two','one','general']);
+ assert.deepEqual(selectPromotions(ranked,{consented:true,facets:[{id:'lead',strong:true,label:'主導したい',count:3,opportunities:4}]},now).map(c=>c.id),['one','general']);
  assert.deepEqual(selectPromotions(ranked,{consented:false,facets:strong,gender:'man',age:'20-24'},now).map(c=>c.id),['one','two','general']);
  assert.deepEqual(selectPromotions(offers,{},Date.parse('2028-01-01')),[]);
  assert.deepEqual(selectPromotions([{...offers[0],placements:['post-share']},{...offers[2],placements:['post-result']}],{placement:'post-result',consented:true,facets:profile.facets},now).map(c=>c.id),['selected']);

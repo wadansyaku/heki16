@@ -12,7 +12,7 @@ export function validateAffiliateConfig(config, now = Date.now(), knownAffinitie
   check(config.accountApproved === true && config.siteApproved === true, 'Account and registered media approval are required');
   check(config.provider === 'myfans' && config.mediaUrl === REGISTERED_MEDIA_URL, 'Use the approved provider and media');
   check(typeof config.personalizationEnabled === 'boolean', 'Explicit personalization policy required');
-  check(config.campaigns.length > 0 && config.campaigns.length <= 6, 'Use one to six approved campaigns');
+  check(config.campaigns.length > 0 && config.campaigns.length <= 24, 'Use one to twenty-four approved campaigns');
   const ids = new Set();
   return config.campaigns.filter(item => item.enabled !== false).map(item => {
     check(typeof item.id === 'string' && /^[a-z0-9-]{1,48}$/.test(item.id) && !ids.has(item.id), 'Unique campaign ID required');

@@ -8,6 +8,12 @@ export function adConsentApplies(consent,recordId,now=Date.now()){
 function strongFacetIds(facets){
  return new Set((facets||[]).filter(f=>f?.strong===true).map(f=>f.id));
 }
+function facetStrength(facets,id){
+ const facet=(facets||[]).find(item=>item?.id===id);
+ if(!facet||facet.strong!==true)return 0;
+ const count=Number(facet.count)||0,opportunities=Number(facet.opportunities)||0;
+ return opportunities>0?count/opportunities:0;
+}
 function placed(campaign,placement){
  if(!placement)return true;
  const list=campaign.placements;
@@ -22,10 +28,11 @@ export function selectPromotions(campaigns,{consented=false,facets=[],placement}
  const selected=strongFacetIds(facets);
  const ranked=campaigns.filter(c=>Date.parse(c.expiresAt)>now&&placed(c,placement)).map((c,index)=>{
   const affinities=c.affinities||[];
-  return {c,index,overlap:affinities.filter(id=>selected.has(id)).length,targeted:affinities.length>0};
+  const matched=affinities.filter(id=>selected.has(id));
+  return {c,index,overlap:matched.length,precise:affinities.length>0&&matched.length===affinities.length,strength:matched.reduce((best,id)=>Math.max(best,facetStrength(facets,id)),0),targeted:affinities.length>0};
  });
  if(!consented)return ranked.sort((a,b)=>a.index-b.index).slice(0,3).map(({c})=>c);
- const matches=ranked.filter(item=>item.overlap>0).sort((a,b)=>b.overlap-a.overlap||a.index-b.index);
+ const matches=ranked.filter(item=>item.precise).sort((a,b)=>b.overlap-a.overlap||b.strength-a.strength||a.index-b.index);
  const general=ranked.filter(item=>!item.targeted).sort((a,b)=>a.index-b.index);
  return [...matches,...general].slice(0,3).map(({c})=>c);
 }
